@@ -1,0 +1,258 @@
+// ==============================================
+// PingAlert Pro — Prisma Schema
+// ==============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Users ----
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("TECH") // ADMIN, TECH, CLIENT
+  clientId  String?
+  active    Boolean  @default(true)
+  avatarUrl String?
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client             Client?              @relation(fields: [clientId], references: [id])
+  auditLogs          AuditLog[]
+  maintenanceWindows MaintenanceWindow[]
+
+  @@index([email])
+  @@index([clientId])
+  @@map("users")
+}
+
+// ---- Clients ----
+model Client {
+  id             String   @id @default(uuid())
+  name           String
+  company        String?
+  document       String?
+  phone          String?
+  whatsapp       String?
+  telegramChatId String?
+  email          String?
+  address        String?
+  notes          String?
+  plan           String   @default("BASIC") // BASIC, PRO, ENTERPRISE
+  maxEquipments  Int      @default(10)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  equipments Equipment[]
+  users      User[]
+
+  @@map("clients")
+}
+
+// ---- Equipments ----
+model Equipment {
+  id                  String   @id @default(uuid())
+  internalId          String   @unique
+  name                String
+  host                String
+  checkType           String   @default("PING") // PING, HTTP, TCP
+  port                Int?
+  location            String?
+  clientId            String?
+  groupName           String?
+  checkInterval       Int      @default(60) // seconds
+  failThreshold       Int      @default(3)
+  alertCooldown       Int      @default(300) // seconds
+  status              String   @default("ONLINE") // ONLINE, OFFLINE, UNSTABLE, MAINTENANCE
+  monitoringEnabled   Boolean  @default(true)
+  notes               String?
+  lastCheck           DateTime?
+  lastOnline          DateTime?
+  lastOffline         DateTime?
+  avgResponseTime     Float    @default(0)
+  uptimePercent       Float    @default(100)
+  totalUptime         Int      @default(0) // seconds
+  totalDowntime       Int      @default(0) // seconds
+  consecutiveFailures Int      @default(0)
+  telegramAlertEnabled  Boolean @default(true)
+  whatsappAlertEnabled  Boolean @default(true)
+  webhookAlertEnabled   Boolean @default(true)
+  lastAlertSentAt     DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  client             Client?              @relation(fields: [clientId], references: [id])
+  checks             EquipmentCheck[]
+  alerts             Alert[]
+  maintenanceWindows MaintenanceWindow[]
+  escalationRules    EscalationRule[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([monitoringEnabled])
+  @@index([internalId])
+  @@map("equipments")
+}
+
+// ---- Equipment Checks (History) ----
+model EquipmentCheck {
+  id             String   @id @default(uuid())
+  equipmentId    String
+  success        Boolean
+  responseTime   Float?   // ms
+  statusCode     Int?
+  error          String?
+  previousStatus String?
+  newStatus      String?
+  alertSent      Boolean  @default(false)
+  alertChannel   String?
+  alertMessage   String?
+  checkedAt      DateTime @default(now())
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([checkedAt])
+  @@index([equipmentId, checkedAt])
+  @@map("equipment_checks")
+}
+
+// ---- Alerts ----
+model Alert {
+  id          String   @id @default(uuid())
+  equipmentId String
+  type        String   // OFFLINE, ONLINE, UNSTABLE, ESCALATION, MANUAL
+  channel     String   // TELEGRAM, WHATSAPP, WEBHOOK, EMAIL
+  recipient   String?
+  message     String
+  delivered   Boolean  @default(false)
+  error       String?
+  retryCount  Int      @default(0)
+  sentAt      DateTime @default(now())
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([sentAt])
+  @@index([type])
+  @@index([channel])
+  @@map("alerts")
+}
+
+// ---- Notification Settings ----
+model NotificationSetting {
+  id      String  @id @default(uuid())
+  name    String
+  type    String  // TELEGRAM, WHATSAPP, WEBHOOK
+  config  String  // JSON string
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_settings")
+}
+
+// ---- Integrations ----
+model Integration {
+  id          String   @id @default(uuid())
+  name        String
+  provider    String   // TELEGRAM, WHATSAPP_CLOUD, TWILIO, EVOLUTION, CUSTOM
+  apiUrl      String?
+  apiKey      String?
+  extraConfig String?  // JSON string
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("integrations")
+}
+
+// ---- Webhooks ----
+model Webhook {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  secret    String?
+  events    String   // JSON array string
+  headers   String?  // JSON string
+  active    Boolean  @default(true)
+  lastTriggered DateTime?
+  failCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("webhooks")
+}
+
+// ---- Maintenance Windows ----
+model MaintenanceWindow {
+  id          String   @id @default(uuid())
+  equipmentId String
+  reason      String
+  startAt     DateTime
+  endAt       DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@index([equipmentId])
+  @@index([startAt, endAt])
+  @@map("maintenance_windows")
+}
+
+// ---- Escalation Rules ----
+model EscalationRule {
+  id            String @id @default(uuid())
+  equipmentId   String
+  delayMinutes  Int
+  targetRole    String // TECH, ADMIN, CLIENT
+  targetContact String?
+  channel       String // TELEGRAM, WHATSAPP
+  orderNum      Int
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@map("escalation_rules")
+}
+
+// ---- System Settings ----
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ---- Audit Logs ----
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?  // JSON string
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

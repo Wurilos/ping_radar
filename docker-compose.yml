@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pingalert-db
+    restart: always
+    environment:
+      POSTGRES_USER: pingalert
+      POSTGRES_PASSWORD: pingalert_password
+      POSTGRES_DB: pingalert
+    ports:
+      - "5432:5432"
+    volumes:
+      - pingalert_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pingalert-backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://pingalert:pingalert_password@db:5432/pingalert?schema=public
+      - JWT_SECRET=change_this_very_long_secret_key_in_production
+      - FRONTEND_URL=http://localhost:3000
+      - TELEGRAM_BOT_TOKEN=seu_token_aqui
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:3001/api
+    container_name: pingalert-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+
+volumes:
+  pingalert_pgdata:

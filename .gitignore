@@ -1,0 +1,51 @@
+﻿# Dependências
+node_modules/
+vendor/
+venv/
+.venv/
+env/
+
+# Compilações
+dist/
+build/
+.next/
+out/
+target/
+bin/
+obj/
+coverage/
+
+# Cache
+__pycache__/
+*.pyc
+.cache/
+tmp/
+temp/
+
+# Variáveis e credenciais
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+credentials.json
+service-account.json
+
+# Logs e bancos locais
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos compactados
+*.rar
+*.zip
+*.7z
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
