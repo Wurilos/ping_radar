@@ -3,7 +3,7 @@
 // ==============================================
 
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config';
 import prisma from '../config/database';
 import logger from '../config/logger';
@@ -24,11 +24,14 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Update last login
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
+
+    const signOptions: SignOptions = {
+      expiresIn: config.jwtExpiresIn as SignOptions['expiresIn'],
+    };
 
     const token = jwt.sign(
       {
@@ -38,7 +41,7 @@ export class AuthService {
         clientId: user.clientId,
       },
       config.jwtSecret,
-      { expiresIn: config.jwtExpiresIn }
+      signOptions
     );
 
     logger.info(`User logged in: ${user.email}`, { userId: user.id, role: user.role });

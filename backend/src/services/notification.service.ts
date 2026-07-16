@@ -7,10 +7,9 @@ import logger from '../config/logger';
 import { config } from '../config';
 import { telegramService } from './telegram.service';
 import { whatsappService } from './whatsapp.service';
-import { webhookService, WebhookEvent } from './webhook.service';
+import { webhookService } from './webhook.service';
 
 export class NotificationService {
-  // Check if currently in quiet hours
   isQuietHours(): boolean {
     if (!config.quietHours.enabled) return false;
 
@@ -22,20 +21,17 @@ export class NotificationService {
     const endMinutes = endH * 60 + endM;
 
     if (startMinutes > endMinutes) {
-      // Overnight: e.g., 22:00 - 07:00
       return currentMinutes >= startMinutes || currentMinutes < endMinutes;
     }
     return currentMinutes >= startMinutes && currentMinutes < endMinutes;
   }
 
-  // Check if alert cooldown has passed
   isInCooldown(equipment: any): boolean {
     if (!equipment.lastAlertSentAt) return false;
     const elapsed = (Date.now() - new Date(equipment.lastAlertSentAt).getTime()) / 1000;
     return elapsed < equipment.alertCooldown;
   }
 
-  // Format duration in human-readable format
   formatDuration(ms: number): string {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -48,7 +44,6 @@ export class NotificationService {
     return `${seconds}s`;
   }
 
-  // Send offline alert through all configured channels
   async sendOfflineAlert(equipment: any): Promise<void> {
     if (this.isQuietHours()) {
       logger.info(`Quiet hours active, skipping alert for ${equipment.name}`);
@@ -64,25 +59,26 @@ export class NotificationService {
 
     const promises: Promise<void>[] = [];
 
-    // Telegram
     if (equipment.telegramAlertEnabled) {
       promises.push(
-        telegramService.sendOfflineAlert(equipment).then(() => {}).catch(err =>
-          logger.error('Telegram offline alert failed', { error: err.message })
-        )
+        telegramService.sendOfflineAlert(equipment)
+          .then(() => undefined)
+          .catch(err => {
+            logger.error('Telegram offline alert failed', { error: err.message });
+          })
       );
     }
 
-    // WhatsApp
     if (equipment.whatsappAlertEnabled && whatsappService.isConfigured()) {
       promises.push(
-        whatsappService.sendOfflineAlert(equipment).then(() => {}).catch(err =>
-          logger.error('WhatsApp offline alert failed', { error: err.message })
-        )
+        whatsappService.sendOfflineAlert(equipment)
+          .then(() => undefined)
+          .catch(err => {
+            logger.error('WhatsApp offline alert failed', { error: err.message });
+          })
       );
     }
 
-    // Webhook
     if (equipment.webhookAlertEnabled) {
       promises.push(
         webhookService.dispatch('equipment.offline', {
@@ -93,22 +89,20 @@ export class NotificationService {
           client: equipment.client?.name,
           location: equipment.location,
           consecutiveFailures: equipment.consecutiveFailures,
-        }).catch(err =>
-          logger.error('Webhook offline dispatch failed', { error: err.message })
-        )
+        }).then(() => undefined).catch(err => {
+          logger.error('Webhook offline dispatch failed', { error: err.message });
+        })
       );
     }
 
     await Promise.allSettled(promises);
 
-    // Update last alert sent timestamp
     await prisma.equipment.update({
       where: { id: equipment.id },
       data: { lastAlertSentAt: new Date() },
     });
   }
 
-  // Send online/recovery alert
   async sendOnlineAlert(equipment: any): Promise<void> {
     const offlineDuration = equipment.lastOffline
       ? this.formatDuration(Date.now() - new Date(equipment.lastOffline).getTime())
@@ -118,25 +112,26 @@ export class NotificationService {
 
     const promises: Promise<void>[] = [];
 
-    // Telegram
     if (equipment.telegramAlertEnabled) {
       promises.push(
-        telegramService.sendOnlineAlert(equipment, offlineDuration).then(() => {}).catch(err =>
-          logger.error('Telegram online alert failed', { error: err.message })
-        )
+        telegramService.sendOnlineAlert(equipment, offlineDuration)
+          .then(() => undefined)
+          .catch(err => {
+            logger.error('Telegram online alert failed', { error: err.message });
+          })
       );
     }
 
-    // WhatsApp
     if (equipment.whatsappAlertEnabled && whatsappService.isConfigured()) {
       promises.push(
-        whatsappService.sendOnlineAlert(equipment, offlineDuration).then(() => {}).catch(err =>
-          logger.error('WhatsApp online alert failed', { error: err.message })
-        )
+        whatsappService.sendOnlineAlert(equipment, offlineDuration)
+          .then(() => undefined)
+          .catch(err => {
+            logger.error('WhatsApp online alert failed', { error: err.message });
+          })
       );
     }
 
-    // Webhook
     if (equipment.webhookAlertEnabled) {
       promises.push(
         webhookService.dispatch('equipment.online', {
@@ -146,16 +141,15 @@ export class NotificationService {
           host: equipment.host,
           client: equipment.client?.name,
           offlineDuration,
-        }).catch(err =>
-          logger.error('Webhook online dispatch failed', { error: err.message })
-        )
+        }).then(() => undefined).catch(err => {
+          logger.error('Webhook online dispatch failed', { error: err.message });
+        })
       );
     }
 
     await Promise.allSettled(promises);
   }
 
-  // Send manual alert
   async sendManualAlert(equipmentId: string, message: string, channels: string[]): Promise<{ results: any[] }> {
     const equipment = await prisma.equipment.findUnique({
       where: { id: equipmentId },

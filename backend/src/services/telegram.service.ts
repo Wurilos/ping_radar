@@ -6,11 +6,22 @@ import { config } from '../config';
 import logger from '../config/logger';
 import prisma from '../config/database';
 
+interface TelegramApiResponse<T = unknown> {
+  ok: boolean;
+  result?: T;
+  description?: string;
+}
+
+interface TelegramBotInfo {
+  first_name?: string;
+  username?: string;
+}
+
 export class TelegramService {
   private async getSettings() {
     const tokenSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_bot_token' } });
     const chatSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_chat_id' } });
-    
+
     return {
       botToken: tokenSetting?.value || config.telegram.botToken,
       defaultChatId: chatSetting?.value || config.telegram.defaultChatId,
@@ -41,10 +52,10 @@ export class TelegramService {
         }),
       });
 
-      const result = await response.json();
+      const result = await response.json() as TelegramApiResponse;
 
       if (!result.ok) {
-        logger.error('Telegram send failed', { error: result.description });
+        logger.error('Telegram send failed', { error: result.description || 'Unknown Telegram error' });
         return false;
       }
 
@@ -101,7 +112,6 @@ export class TelegramService {
     const targetChat = chatId || equipment.client?.telegramChatId || settings.defaultChatId;
     const success = await this.sendMessage(targetChat, message);
 
-    // Log alert
     await prisma.alert.create({
       data: {
         equipmentId: equipment.id,
@@ -144,12 +154,16 @@ export class TelegramService {
 
     try {
       const response = await fetch(`https://api.telegram.org/bot${settings.botToken}/getMe`);
-      const result = await response.json();
+      const result = await response.json() as TelegramApiResponse<TelegramBotInfo>;
 
-      if (result.ok) {
-        return { success: true, botName: result.result.first_name };
+      if (result.ok && result.result) {
+        return {
+          success: true,
+          botName: result.result.first_name || result.result.username || 'Telegram Bot',
+        };
       }
-      return { success: false, error: result.description };
+
+      return { success: false, error: result.description || 'Telegram connection failed' };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

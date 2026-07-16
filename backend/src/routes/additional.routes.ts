@@ -9,6 +9,7 @@ import { notificationService } from '../services/notification.service';
 import { telegramService } from '../services/telegram.service';
 import { whatsappService } from '../services/whatsapp.service';
 import { monitoringWorker } from '../workers/monitoring.worker';
+import { getRouteParam } from '../utils/request';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
 
@@ -26,7 +27,6 @@ alertRoutes.get('/', authenticate, clientScope, async (req: Request, res: Respon
     if (req.query.channel) where.channel = req.query.channel;
     if (req.query.equipmentId) where.equipmentId = req.query.equipmentId;
 
-    // Client scope
     if (req.user?.role === 'CLIENT' && req.user.clientId) {
       where.equipment = { clientId: req.user.clientId };
     }
@@ -63,7 +63,7 @@ alertRoutes.post('/send', authenticate, authorize('ADMIN', 'TECH'), async (req: 
 // ===================== USER ROUTES =====================
 export const userRoutes = Router();
 
-userRoutes.get('/', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+userRoutes.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -97,7 +97,7 @@ userRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Request, re
   try {
     const { name, email, role, active, clientId } = req.body;
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: getRouteParam(req.params.id, 'id') },
       data: { name, email, role, active, clientId },
       select: { id: true, name: true, email: true, role: true, active: true },
     });
@@ -109,7 +109,7 @@ userRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Request, re
 
 userRoutes.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
-    await prisma.user.delete({ where: { id: req.params.id } });
+    await prisma.user.delete({ where: { id: getRouteParam(req.params.id, 'id') } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -119,10 +119,9 @@ userRoutes.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request,
 // ===================== SETTINGS ROUTES =====================
 export const settingsRoutes = Router();
 
-settingsRoutes.get('/', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+settingsRoutes.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const settings = await prisma.systemSetting.findMany({ orderBy: { key: 'asc' } });
-    // Convert to key-value object
     const result: any = {};
     settings.forEach(s => { result[s.key] = s.value; });
     res.json(result);
@@ -150,10 +149,9 @@ settingsRoutes.put('/', authenticate, authorize('ADMIN'), async (req: Request, r
 // ===================== INTEGRATION ROUTES =====================
 export const integrationRoutes = Router();
 
-integrationRoutes.get('/', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+integrationRoutes.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const integrations = await prisma.integration.findMany({ orderBy: { name: 'asc' } });
-    // Never expose API keys to frontend
     const safe = integrations.map(i => ({
       ...i,
       apiKey: i.apiKey ? '••••••••' + (i.apiKey.slice(-4) || '') : null,
@@ -176,7 +174,7 @@ integrationRoutes.post('/', authenticate, authorize('ADMIN'), async (req: Reques
 integrationRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
     const integration = await prisma.integration.update({
-      where: { id: req.params.id },
+      where: { id: getRouteParam(req.params.id, 'id') },
       data: req.body,
     });
     res.json(integration);
@@ -187,15 +185,14 @@ integrationRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Requ
 
 integrationRoutes.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
-    await prisma.integration.delete({ where: { id: req.params.id } });
+    await prisma.integration.delete({ where: { id: getRouteParam(req.params.id, 'id') } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
 });
 
-// Telegram test
-integrationRoutes.post('/telegram/test', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+integrationRoutes.post('/telegram/test', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const result = await telegramService.testConnection();
     res.json(result);
@@ -204,8 +201,7 @@ integrationRoutes.post('/telegram/test', authenticate, authorize('ADMIN'), async
   }
 });
 
-// WhatsApp info
-integrationRoutes.get('/whatsapp/status', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+integrationRoutes.get('/whatsapp/status', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   res.json({
     configured: whatsappService.isConfigured(),
     provider: whatsappService.getProviderName(),
@@ -215,10 +211,9 @@ integrationRoutes.get('/whatsapp/status', authenticate, authorize('ADMIN'), asyn
 // ===================== WEBHOOK ROUTES =====================
 export const webhookRoutes = Router();
 
-webhookRoutes.get('/', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+webhookRoutes.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const webhooks = await prisma.webhook.findMany({ orderBy: { name: 'asc' } });
-    // Hide secrets
     const safe = webhooks.map(w => ({ ...w, secret: w.secret ? '••••••••' : null }));
     res.json({ data: safe });
   } catch (error: any) {
@@ -252,7 +247,10 @@ webhookRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Request,
     if (events) data.events = JSON.stringify(events);
     if (headers) data.headers = JSON.stringify(headers);
 
-    const webhook = await prisma.webhook.update({ where: { id: req.params.id }, data });
+    const webhook = await prisma.webhook.update({
+      where: { id: getRouteParam(req.params.id, 'id') },
+      data,
+    });
     res.json(webhook);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -261,7 +259,7 @@ webhookRoutes.put('/:id', authenticate, authorize('ADMIN'), async (req: Request,
 
 webhookRoutes.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
-    await prisma.webhook.delete({ where: { id: req.params.id } });
+    await prisma.webhook.delete({ where: { id: getRouteParam(req.params.id, 'id') } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });

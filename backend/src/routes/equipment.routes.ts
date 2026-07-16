@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { equipmentService } from '../services/equipment.service';
 import { authenticate, authorize, clientScope } from '../middleware/auth.middleware';
 import { monitoringWorker } from '../workers/monitoring.worker';
+import { getRouteParam } from '../utils/request';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.get('/groups', authenticate, clientScope, async (req: Request, res: Respo
 // GET /api/equipments/:id - Get by ID
 router.get('/:id', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
-    const equipment = await equipmentService.findById(req.params.id, req.user);
+    const equipment = await equipmentService.findById(getRouteParam(req.params.id, 'id'), req.user);
     res.json(equipment);
   } catch (error: any) {
     res.status(404).json({ error: error.message });
@@ -71,7 +72,7 @@ router.post('/', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, 
 // PUT /api/equipments/:id - Update
 router.put('/:id', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
-    const equipment = await equipmentService.update(req.params.id, req.body);
+    const equipment = await equipmentService.update(getRouteParam(req.params.id, 'id'), req.body);
     res.json(equipment);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -81,7 +82,7 @@ router.put('/:id', authenticate, authorize('ADMIN', 'TECH'), async (req: Request
 // DELETE /api/equipments/:id - Delete
 router.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
-    await equipmentService.delete(req.params.id);
+    await equipmentService.delete(getRouteParam(req.params.id, 'id'));
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -105,7 +106,7 @@ router.post('/bulk-delete', authenticate, authorize('ADMIN'), async (req: Reques
 // POST /api/equipments/:id/test - Test equipment now
 router.post('/:id/test', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
-    const result = await monitoringWorker.testEquipment(req.params.id);
+    const result = await monitoringWorker.testEquipment(getRouteParam(req.params.id, 'id'));
     res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -117,7 +118,7 @@ router.post('/:id/maintenance', authenticate, authorize('ADMIN', 'TECH'), async 
   try {
     const { enabled, reason } = req.body;
     const equipment = await equipmentService.setMaintenance(
-      req.params.id,
+      getRouteParam(req.params.id, 'id'),
       enabled,
       req.user!.userId,
       reason
@@ -131,7 +132,7 @@ router.post('/:id/maintenance', authenticate, authorize('ADMIN', 'TECH'), async 
 // GET /api/equipments/:id/history - Get check history
 router.get('/:id/history', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
-    const history = await equipmentService.getHistory(req.params.id, {
+    const history = await equipmentService.getHistory(getRouteParam(req.params.id, 'id'), {
       page: parseInt(req.query.page as string) || 1,
       limit: parseInt(req.query.limit as string) || 100,
       startDate: req.query.startDate as string,
@@ -147,7 +148,7 @@ router.get('/:id/history', authenticate, clientScope, async (req: Request, res: 
 router.get('/:id/response-time', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const hours = parseInt(req.query.hours as string) || 24;
-    const data = await equipmentService.getResponseTimeHistory(req.params.id, hours);
+    const data = await equipmentService.getResponseTimeHistory(getRouteParam(req.params.id, 'id'), hours);
     res.json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
