@@ -1,0 +1,12 @@
+# Mantém arquivos de texto consistentes entre Windows e Linux
+* text=auto
+
+# Scripts executados em containers Linux devem permanecer em LF
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Scripts do Windows usam CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
