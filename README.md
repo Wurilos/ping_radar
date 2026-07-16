@@ -1,59 +1,124 @@
 # PingAlert Pro 📡
 
-PingAlert Pro é um sistema moderno e sofisticado para monitoramento de equipamentos de rede, servidores e infraestrutura. Ele verifica periodicamente o status de conectividade através de protocolos como Ping (ICMP), HTTP e TCP, enviando notificações imediatas para a sua equipe via Telegram e WhatsApp quando ocorre uma falha ou recuperação.
+Sistema de monitoramento de equipamentos por PING/ICMP, HTTP, TCP e status OpenVPN, com dashboard Next.js, API Express, Prisma e alertas.
 
-## ✨ Principais Funcionalidades
+## Início rápido com Docker no Windows
 
-- **Monitoramento Multiprotocolo**: Valide roteadores (Ping), servidores web (HTTP/HTTPS) ou bancos de dados e serviços (TCP).
-- **Gestão de Falhas Inteligente**: Configuração granular de "Thresholds" (tentativas antes de alertar) e "Cooldowns" (tempo de espera entre alertas repetidos) para evitar spam de mensagens.
-- **Sistema Multi-Tenant**: Gerencie diferentes clientes, cada um com sua própria quota de equipamentos, com controle de acesso para Administradores, Técnicos e Clientes Finais.
-- **Integração de Notificações**: Disparo automático de mensagens amigáveis pelo Telegram e WhatsApp.
-- **Dashboard Premium**: Interface baseada em Next.js no padrão Dark Mode com Glassmorphism, garantindo a melhor experiência visual e analítica (Uptime, tempo de resposta, histórico de eventos).
-- **Webhooks**: Integração com sistemas de terceiros (como Zapier ou n8n) em eventos de queda ou recuperação.
+Pré-requisitos:
 
-## 🏗️ Arquitetura e Tecnologias
+- Docker Desktop iniciado;
+- portas 3000 e 3001 livres.
 
-O sistema segue a estrutura de **Monorepo** e é dividido em duas partes principais:
+Na raiz do projeto, execute:
 
-### Frontend
-- **Framework:** Next.js 16 (App Router)
-- **Estilização:** CSS Customizado (Design System próprio, sem dependência excessiva de bibliotecas de componentes externas para garantir visual único).
-- **Comunicação:** Fetch API com encapsulamento e gestão de tokens JWT (Local Storage).
+```powershell
+.\install.bat
+```
 
-### Backend
-- **Core:** Node.js com Express e TypeScript.
-- **Banco de Dados:** Prisma ORM com SQLite para desenvolvimento fácil (100% compatível para migração para PostgreSQL em produção).
-- **Monitoramento (Worker):** Motor embutido no Node (rodando de forma assíncrona com `node-cron` ou _setInterval_ não bloqueante).
-- **Mensageria:** Bibliotecas flexíveis para requisições HTTP (WhatsApp APIs) e webhooks.
+Ou manualmente:
 
-## 🚀 Como Iniciar (Desenvolvimento)
+```powershell
+docker compose up -d --build
+```
 
-Veja o arquivo [INSTALL.md](./INSTALL.md) para detalhes avançados de deploy, ou siga o passo a passo abaixo para rodar localmente.
+Acesse:
 
-### Pré-requisitos
-- Node.js v18+
-- NPM ou Yarn
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3001`
+- Login inicial: `admin@pingalert.pro`
+- Senha inicial: `admin123`
 
-### Instalação
+O banco SQLite é criado em um volume Docker e recebe os dados iniciais apenas na primeira execução.
 
-1. Clone o repositório ou navegue até a pasta raiz `Ping_Radar`.
-2. Configure as variáveis de ambiente baseando-se no arquivo `.env.example`.
-3. Instale as dependências executando na raiz do projeto:
-   ```bash
-   npm run setup
-   ```
-4. Inicie o sistema inteiro (API, Worker e Frontend) ao mesmo tempo:
-   ```bash
-   npm run dev
-   ```
+Para acompanhar os logs:
 
-O Frontend ficará acessível em `http://localhost:3000` e a API REST em `http://localhost:3001/api`.
+```powershell
+docker compose logs -f
+```
 
-## 📚 Documentação Adicional
+Para parar:
 
-- [Guia de Instalação e Produção (INSTALL.md)](./INSTALL.md)
-- [Documentação da API REST (API.md)](./API.md)
+```powershell
+docker compose down
+```
 
-## 📄 Licença
+Para apagar também o banco e reiniciar do zero:
 
-Este projeto é de uso proprietário e exclusivo.
+```powershell
+docker compose down -v
+```
+
+## VPN no Windows
+
+O monitoramento é executado no mesmo ambiente do backend. Quando o backend roda no Docker, o PING parte do container Linux. Algumas VPNs do Windows não encaminham suas rotas privadas para containers.
+
+Primeiro teste o IP no Windows:
+
+```powershell
+ping 10.0.0.1
+Test-NetConnection 10.0.0.1 -Port 80
+```
+
+Se funcionar no Windows, mas falhar no sistema executado pelo Docker, rode o backend diretamente no Windows:
+
+```powershell
+Copy-Item .env.example backend\.env
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run seed
+npm run dev
+```
+
+Em outro PowerShell, rode o frontend:
+
+```powershell
+cd frontend
+"NEXT_PUBLIC_API_URL=http://localhost:3001" | Set-Content .env.local
+npm install
+npm run dev
+```
+
+Nesse modo, o backend usa diretamente as rotas criadas pela VPN do Windows.
+
+## Monitoramento OpenVPN
+
+O tipo `OPENVPN` não detecta automaticamente o ícone de VPN conectada no computador. Ele lê um arquivo de status gerado por um servidor OpenVPN e procura o `common name` do cliente.
+
+Por padrão:
+
+- Windows local: `C:\openvpn-status.log`
+- Docker: `/openvpn/openvpn-status.log`
+
+Para usar no Docker, monte o arquivo no `docker-compose.yml`:
+
+```yaml
+volumes:
+  - "C:/caminho/openvpn-status.log:/openvpn/openvpn-status.log:ro"
+```
+
+## Desenvolvimento sem Docker
+
+```powershell
+npm install
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run seed
+cd ..\frontend
+npm install
+cd ..
+npm run dev
+```
+
+## Segurança
+
+Antes de publicar em produção:
+
+- troque `JWT_SECRET`;
+- altere a senha inicial do administrador;
+- configure CORS e URLs públicas;
+- não envie arquivos `.env` ao GitHub;
+- use HTTPS e um proxy reverso.
