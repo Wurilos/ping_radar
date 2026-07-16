@@ -24,8 +24,15 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao entrar';
+      const apiUnavailable = message.toLowerCase().includes('failed to fetch') || message.toLowerCase().includes('network');
+
+      setError(
+        apiUnavailable
+          ? 'Não foi possível conectar à API. Aguarde a inicialização do backend e tente novamente.'
+          : message
+      );
     } finally {
       setLoading(false);
     }
