@@ -1,7 +1,20 @@
 #!/bin/sh
+set -e
 
-# Roda as migrações do banco de dados (cria as tabelas se não existirem)
+DB_FILE="/app/prisma/data/pingalert.db"
+FIRST_RUN=false
+
+if [ ! -f "$DB_FILE" ]; then
+  FIRST_RUN=true
+fi
+
+mkdir -p /app/prisma/data
+
 npx prisma migrate deploy
 
-# Inicia o servidor backend
-npm run start
+if [ "$FIRST_RUN" = "true" ]; then
+  echo "Primeira execução: populando banco de dados..."
+  npm run seed
+fi
+
+exec npm run start
