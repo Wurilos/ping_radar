@@ -30,5 +30,22 @@ jobs:
         run: npx prisma generate
         env:
           DATABASE_URL: file:./dev.db
-      - name: Build backend
-        run: npm run build
+      - name: Build backend and capture log
+        id: backend_build
+        shell: bash
+        run: |
+          set +e
+          npm run build > backend-build.log 2>&1
+          status=$?
+          cat backend-build.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload backend build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build-log
+          path: backend/backend-build.log
+      - name: Fail when compilation failed
+        if: steps.backend_build.outputs.status != '0'
+        run: exit 1
