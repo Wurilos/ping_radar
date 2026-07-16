@@ -13,12 +13,13 @@ export async function openVpnCheck(commonName: string): Promise<CheckResult> {
     if (!fs.existsSync(logPath)) {
       return {
         success: false,
+        responseTime: null,
         error: `VPN Log file not found at ${logPath}`,
       };
     }
 
     const logContent = await fs.promises.readFile(logPath, 'utf8');
-    
+
     // OpenVPN Status Log format usually contains lines like:
     // client_name,192.168.1.1:50000,100,200,Thu Jun 28 09:00:00 2026
     // We split by lines and look for the exact commonName followed by a comma.
@@ -30,18 +31,20 @@ export async function openVpnCheck(commonName: string): Promise<CheckResult> {
     if (isConnected) {
       return {
         success: true,
-        responseTime, // local file read is practically 0ms, but we log it
+        responseTime,
         statusCode: 200,
       };
-    } else {
-      return {
-        success: false,
-        error: `Client ${commonName} not found in VPN log`,
-      };
     }
+
+    return {
+      success: false,
+      responseTime: null,
+      error: `Client ${commonName} not found in VPN log`,
+    };
   } catch (error: any) {
     return {
       success: false,
+      responseTime: null,
       error: `Error reading VPN log: ${error.message}`,
     };
   }
