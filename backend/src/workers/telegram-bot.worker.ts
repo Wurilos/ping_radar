@@ -10,6 +10,7 @@ import { telegramService } from '../services/telegram.service';
 class TelegramBotWorker {
   private isRunning = false;
   private offset = 0;
+  private generation = 0;
 
   async start(): Promise<void> {
     if (this.isRunning) {
@@ -32,6 +33,7 @@ class TelegramBotWorker {
     });
     this.offset = Number.parseInt(savedOffset?.value || '0', 10) || 0;
     this.isRunning = true;
+    const currentGeneration = ++this.generation;
 
     // Long polling and webhook are mutually exclusive.
     await telegramService.deleteWebhook();
@@ -48,12 +50,18 @@ class TelegramBotWorker {
     ]);
 
     logger.info('🤖 Telegram interactive panel started');
-    void this.poll();
+    void this.poll(currentGeneration);
   }
 
   async stop(): Promise<void> {
     this.isRunning = false;
+    this.generation += 1;
     logger.info('⏹️ Telegram bot worker stopped');
+  }
+
+  async restart(): Promise<void> {
+    await this.stop();
+    await this.start();
   }
 
   private async persistOffset(): Promise<void> {
@@ -69,10 +77,11 @@ class TelegramBotWorker {
     });
   }
 
-  private async poll(): Promise<void> {
-    while (this.isRunning) {
+  private async poll(generation: number): Promise<void> {
+    while (this.isRunning && generation === this.generation) {
       try {
         const updates = await telegramService.getUpdates(this.offset || undefined, 25);
+        if (!this.isRunning || generation !== this.generation) break;
 
         for (const update of updates) {
           try {
@@ -91,7 +100,7 @@ class TelegramBotWorker {
           await this.persistOffset();
         }
       } catch (error: any) {
-        if (!this.isRunning) break;
+        if (!this.isRunning || generation !== this.generation) break;
         logger.error('Telegram long polling failed', { error: error.message });
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
