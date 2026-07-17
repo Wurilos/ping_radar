@@ -23,8 +23,9 @@ import {
   healthRoutes,
 } from './routes/additional.routes';
 
-// Worker
+// Workers
 import { monitoringWorker } from './workers/monitoring.worker';
+import { telegramBotWorker } from './workers/telegram-bot.worker';
 
 const app = express();
 
@@ -97,10 +98,11 @@ async function start() {
       logger.info(`🔗 Frontend URL: ${config.frontendUrl}`);
     });
 
-    // Start monitoring worker
+    // Start monitoring and Telegram workers
     await monitoringWorker.start();
     logger.info('🔄 Monitoring worker started');
 
+    await telegramBotWorker.start();
   } catch (error: any) {
     logger.error('❌ Failed to start server', { error: error.message });
     process.exit(1);
@@ -110,6 +112,7 @@ async function start() {
 // ---- Graceful Shutdown ----
 process.on('SIGINT', async () => {
   logger.info('Shutting down gracefully...');
+  await telegramBotWorker.stop();
   await monitoringWorker.stop();
   await prisma.$disconnect();
   process.exit(0);
@@ -117,6 +120,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down...');
+  await telegramBotWorker.stop();
   await monitoringWorker.stop();
   await prisma.$disconnect();
   process.exit(0);
