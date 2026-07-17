@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Send, MessageCircle, Link as LinkIcon, Save, Search } from 'lucide-react';
+import { Send, MessageCircle, Link as LinkIcon, Save, Search, Bot, ShieldCheck } from 'lucide-react';
 
 export default function IntegrationsPage() {
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
@@ -38,7 +38,9 @@ export default function IntegrationsPage() {
     try {
       const result = await api.testTelegram();
       setTelegramStatus(result);
-      alert(result.success ? `✅ Bot conectado: ${result.botName}` : `❌ Falha: ${result.error}`);
+      alert(result.success
+        ? `✅ Bot conectado e mensagem enviada: ${result.botName}`
+        : `❌ Falha: ${result.error}`);
     } catch (err: any) { alert(err.message); }
     finally { setTestingTelegram(false); }
   }
@@ -51,15 +53,20 @@ export default function IntegrationsPage() {
     setSaving(true);
     try {
       await api.updateSettings({
-        telegram_bot_token: settings.telegram_bot_token,
-        telegram_chat_id: settings.telegram_chat_id,
+        telegram_bot_token: settings.telegram_bot_token || '',
+        telegram_chat_id: settings.telegram_chat_id || '',
+        telegram_panel_enabled: settings.telegram_panel_enabled ?? 'true',
+        telegram_allowed_user_ids: settings.telegram_allowed_user_ids || '',
+        telegram_admin_user_ids: settings.telegram_admin_user_ids || '',
       });
-      alert('✅ Configurações salvas com sucesso!');
+      alert('✅ Configurações salvas e painel Telegram atualizado!');
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
   }
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-muted)' }}>Carregando...</div>;
+
+  const panelEnabled = (settings.telegram_panel_enabled ?? 'true') === 'true';
 
   return (
     <div>
@@ -77,47 +84,106 @@ export default function IntegrationsPage() {
             </div>
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700 }}>Telegram Bot</h2>
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Envie alertas para grupos e contatos do Telegram</p>
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Alertas automáticos e painel interativo para a equipe</p>
             </div>
           </div>
+
           <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center', gap: 16 }}>
               <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Bot Token</span>
               <input
                 className="input"
                 type="password"
-                placeholder="Token do BotFather"
+                placeholder="Token completo do BotFather"
                 value={settings.telegram_bot_token || ''}
                 onChange={(e) => updateSetting('telegram_bot_token', e.target.value)}
-                style={{ maxWidth: 300 }}
+                style={{ maxWidth: 360 }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center' }}>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Chat ID padrão</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center', gap: 16 }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Chat ID dos alertas</span>
               <input
                 className="input"
                 type="text"
-                placeholder="-100..."
+                placeholder="Seu ID, grupo -100... ou canal @nome"
                 value={settings.telegram_chat_id || ''}
                 onChange={(e) => updateSetting('telegram_chat_id', e.target.value)}
-                style={{ maxWidth: 300 }}
+                style={{ maxWidth: 360 }}
               />
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Painel interativo</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>Ativa comandos e botões dentro do bot</div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={panelEnabled}
+                  onChange={(e) => updateSetting('telegram_panel_enabled', String(e.target.checked))}
+                />
+                {panelEnabled ? 'Ativado' : 'Desativado'}
+              </label>
+            </div>
+
+            <div style={{ padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Bot size={15} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>IDs autorizados a consultar</span>
+              </div>
+              <textarea
+                className="input"
+                placeholder="Ex.: 123456789, 987654321"
+                value={settings.telegram_allowed_user_ids || ''}
+                onChange={(e) => updateSetting('telegram_allowed_user_ids', e.target.value)}
+                rows={2}
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                Cada usuário deve enviar <b>/id</b> ao bot. Separe os números por vírgula. Use * somente para liberar o painel publicamente.
+              </div>
+            </div>
+
+            <div style={{ padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <ShieldCheck size={15} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>IDs administradores do bot</span>
+              </div>
+              <textarea
+                className="input"
+                placeholder="Ex.: 123456789"
+                value={settings.telegram_admin_user_ids || ''}
+                onChange={(e) => updateSetting('telegram_admin_user_ids', e.target.value)}
+                rows={2}
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                Administradores podem usar o botão <b>Testar agora</b>. Usuários autorizados possuem acesso somente para consulta.
+              </div>
+            </div>
+
             {telegramStatus && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                 <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Status</span>
                 <span style={{ fontSize: 13, color: telegramStatus.success ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }}>
-                  {telegramStatus.success ? `✅ ${telegramStatus.botName}` : `❌ ${telegramStatus.error}`}
+                  {telegramStatus.success ? `✅ ${telegramStatus.botName} — mensagem entregue` : `❌ ${telegramStatus.error}`}
                 </span>
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+
+          <div style={{ padding: 14, borderRadius: 10, background: 'var(--color-bg-input)', marginBottom: 16, fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            <b>Como liberar usuários:</b> eles abrem o bot, enviam <b>/id</b>, informam o número ao administrador e depois usam <b>/menu</b>. O Chat ID acima continua sendo o destino dos alertas automáticos.
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button className="btn btn-primary btn-sm" onClick={handleSaveSettings} disabled={saving}>
               <Save size={16} /> {saving ? 'Salvando...' : 'Salvar Configurações'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={testTelegram} disabled={testingTelegram}>
-              <Search size={16} /> {testingTelegram ? 'Testando...' : 'Testar Conexão'}
+              <Search size={16} /> {testingTelegram ? 'Enviando...' : 'Enviar mensagem de teste'}
             </button>
           </div>
         </div>
