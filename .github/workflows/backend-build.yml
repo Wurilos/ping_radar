@@ -40,3 +40,31 @@ jobs:
         uses: actions/checkout@v4
       - name: Build Docker images
         run: docker compose build
+
+  powershell-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate PowerShell scripts
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path scripts -Filter '*.ps1' -File -Recurse
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error "$($file.FullName): $($_.Message)"
+              }
+              throw "PowerShell syntax validation failed for $($file.FullName)"
+            }
+          }
+
+          Write-Host "Validated $($files.Count) PowerShell script(s)."
