@@ -9,6 +9,7 @@ import { notificationService } from '../services/notification.service';
 import { telegramService } from '../services/telegram.service';
 import { whatsappService } from '../services/whatsapp.service';
 import { monitoringWorker } from '../workers/monitoring.worker';
+import { telegramBotWorker } from '../workers/telegram-bot.worker';
 import { getRouteParam } from '../utils/request';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
@@ -133,14 +134,26 @@ settingsRoutes.get('/', authenticate, authorize('ADMIN'), async (_req: Request, 
 settingsRoutes.put('/', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
     const updates = req.body;
+    const telegramRestartKeys = new Set([
+      'telegram_bot_token',
+      'telegram_panel_enabled',
+    ]);
+    let restartTelegramWorker = false;
+
     for (const [key, value] of Object.entries(updates)) {
       await prisma.systemSetting.upsert({
         where: { key },
         update: { value: String(value) },
         create: { key, value: String(value), updatedAt: new Date() },
       });
+      if (telegramRestartKeys.has(key)) restartTelegramWorker = true;
     }
-    res.json({ success: true });
+
+    if (restartTelegramWorker) {
+      await telegramBotWorker.restart();
+    }
+
+    res.json({ success: true, telegramWorker: telegramBotWorker.getStatus() });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
@@ -273,11 +286,13 @@ healthRoutes.get('/health', async (_req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     const workerStatus = monitoringWorker.getStatus();
+    const telegramPanelStatus = telegramBotWorker.getStatus();
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       database: 'connected',
       worker: workerStatus,
+      telegramPanel: telegramPanelStatus,
     });
   } catch {
     res.status(503).json({ status: 'error', database: 'disconnected' });
