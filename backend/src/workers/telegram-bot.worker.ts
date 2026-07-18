@@ -4,6 +4,7 @@
 
 import prisma from '../config/database';
 import logger from '../config/logger';
+import { telegramContractService } from '../services/telegram-contract.service';
 import { telegramPanelService } from '../services/telegram-panel.service';
 import { telegramService } from '../services/telegram.service';
 
@@ -35,7 +36,6 @@ class TelegramBotWorker {
     this.isRunning = true;
     const currentGeneration = ++this.generation;
 
-    // Long polling and webhook are mutually exclusive.
     await telegramService.deleteWebhook();
     await telegramService.setCommands([
       { command: 'menu', description: 'Abrir painel de monitoramento' },
@@ -45,6 +45,8 @@ class TelegramBotWorker {
       { command: 'online', description: 'Listar equipamentos online' },
       { command: 'manutencao', description: 'Listar equipamentos em manutenção' },
       { command: 'clientes', description: 'Ver resumo por cliente' },
+      { command: 'contratos', description: 'Listar contratos disponíveis' },
+      { command: 'contrato', description: 'Varrer um contrato específico' },
       { command: 'id', description: 'Mostrar seu Telegram User ID' },
       { command: 'ajuda', description: 'Ver ajuda do bot' },
     ]);
@@ -85,7 +87,10 @@ class TelegramBotWorker {
 
         for (const update of updates) {
           try {
-            await telegramPanelService.handleUpdate(update);
+            const handledByContractScanner = await telegramContractService.handleUpdate(update);
+            if (!handledByContractScanner) {
+              await telegramPanelService.handleUpdate(update);
+            }
           } catch (error: any) {
             logger.error('Telegram update processing failed', {
               updateId: update.update_id,
