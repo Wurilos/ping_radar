@@ -91,6 +91,16 @@ class ApiClient {
     return this.request<string[]>('/api/equipments/groups');
   }
 
+  async getContracts() {
+    return this.request<any>('/api/equipments/contracts');
+  }
+
+  async scanContract(contractName: string) {
+    return this.request<any>(`/api/equipments/contracts/${encodeURIComponent(contractName)}/scan`, {
+      method: 'POST',
+    });
+  }
+
   async getEquipment(id: string) {
     return this.request<any>(`/api/equipments/${id}`);
   }
