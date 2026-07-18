@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { equipmentService } from '../services/equipment.service';
+import { contractScanService } from '../services/contract-scan.service';
 import { authenticate, authorize, clientScope } from '../middleware/auth.middleware';
 import { monitoringWorker } from '../workers/monitoring.worker';
 import { getRouteParam } from '../utils/request';
@@ -44,6 +45,27 @@ router.get('/groups', authenticate, clientScope, async (req: Request, res: Respo
   try {
     const groups = await equipmentService.getGroups(req.user);
     res.json(groups);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/equipments/contracts - List contracts available to the user
+router.get('/contracts', authenticate, clientScope, async (req: Request, res: Response) => {
+  try {
+    const contracts = await contractScanService.listContracts(req.user);
+    res.json({ data: contracts });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/equipments/contracts/:name/scan - Scan a contract in real time
+router.post('/contracts/:name/scan', authenticate, clientScope, async (req: Request, res: Response) => {
+  try {
+    const name = getRouteParam(req.params.name, 'name');
+    const result = await contractScanService.scanContract(name, req.user);
+    res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
