@@ -51,6 +51,7 @@ class TelegramAlertService {
     const internalId = this.escapeHtml(equipment.internalId || 'N/A');
     const host = this.escapeHtml(equipment.host || 'N/A');
     const clientName = this.escapeHtml(equipment.client?.name || 'Sem cliente');
+    const contractNumber = this.escapeHtml(equipment.contractNumber || 'Não informado');
     const location = this.escapeHtml(equipment.location || 'Não informado');
     const checkType = this.escapeHtml(equipment.checkType || 'PING');
     const failures = Number(equipment.consecutiveFailures || 0);
@@ -60,10 +61,12 @@ class TelegramAlertService {
 ━━━━━━━━━━━━━━━━━━
 📟 <b>Equipamento:</b> ${equipmentName}
 🆔 <b>Código:</b> ${internalId}
+📑 <b>Contrato:</b> ${contractNumber}
 🌐 <b>IP / Host:</b> <code>${host}</code>
 🏢 <b>Cliente:</b> ${clientName}
 📍 <b>Localização:</b> ${location}
 🔎 <b>Tipo de teste:</b> ${checkType}
+🔧 <b>Em manutenção:</b> NÃO
 ━━━━━━━━━━━━━━━━━━
 
 ❌ <b>Falhas consecutivas:</b> ${failures}
@@ -80,6 +83,7 @@ class TelegramAlertService {
     const internalId = this.escapeHtml(equipment.internalId || 'N/A');
     const host = this.escapeHtml(equipment.host || 'N/A');
     const clientName = this.escapeHtml(equipment.client?.name || 'Sem cliente');
+    const contractNumber = this.escapeHtml(equipment.contractNumber || 'Não informado');
     const location = this.escapeHtml(equipment.location || 'Não informado');
     const duration = this.escapeHtml(offlineDuration || 'Não informado');
     const latency = Number(equipment.avgResponseTime || 0);
@@ -89,9 +93,11 @@ class TelegramAlertService {
 ━━━━━━━━━━━━━━━━━━
 📟 <b>Equipamento:</b> ${equipmentName}
 🆔 <b>Código:</b> ${internalId}
+📑 <b>Contrato:</b> ${contractNumber}
 🌐 <b>IP / Host:</b> <code>${host}</code>
 🏢 <b>Cliente:</b> ${clientName}
 📍 <b>Localização:</b> ${location}
+🔧 <b>Em manutenção:</b> NÃO
 ━━━━━━━━━━━━━━━━━━
 
 ⏳ <b>Tempo indisponível:</b> ${duration}
@@ -107,15 +113,18 @@ class TelegramAlertService {
     const equipmentName = this.escapeHtml(equipment.name || 'Sem nome');
     const host = this.escapeHtml(equipment.host || 'N/A');
     const clientName = this.escapeHtml(equipment.client?.name || 'Sem cliente');
+    const contractNumber = this.escapeHtml(equipment.contractNumber || 'Não informado');
     const location = this.escapeHtml(equipment.location || 'Não informado');
 
     return `🟠⚠️ <b>EQUIPAMENTO INSTÁVEL</b> ⚠️🟠
 
 ━━━━━━━━━━━━━━━━━━
 📟 <b>Equipamento:</b> ${equipmentName}
+📑 <b>Contrato:</b> ${contractNumber}
 🌐 <b>IP / Host:</b> <code>${host}</code>
 🏢 <b>Cliente:</b> ${clientName}
 📍 <b>Localização:</b> ${location}
+🔧 <b>Em manutenção:</b> NÃO
 ━━━━━━━━━━━━━━━━━━
 
 📶 <b>Situação:</b> respostas intermitentes
