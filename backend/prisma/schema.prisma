@@ -64,11 +64,12 @@ model Equipment {
   internalId          String   @unique
   name                String
   host                String
-  checkType           String   @default("PING") // PING, HTTP, TCP
+  checkType           String   @default("PING") // PING, HTTP, TCP, OPENVPN
   port                Int?
   location            String?
   clientId            String?
   groupName           String?
+  contractNumber      String?
   checkInterval       Int      @default(60) // seconds
   failThreshold       Int      @default(3)
   alertCooldown       Int      @default(300) // seconds
@@ -97,6 +98,7 @@ model Equipment {
   escalationRules    EscalationRule[]
 
   @@index([clientId])
+  @@index([contractNumber])
   @@index([status])
   @@index([monitoringEnabled])
   @@index([internalId])
