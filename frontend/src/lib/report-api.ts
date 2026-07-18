@@ -1,5 +1,23 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+export interface ReportEquipment {
+  id: string;
+  internalId: string;
+  name: string;
+  host: string;
+  status: string;
+  contractNumber: string | null;
+  clientName: string | null;
+  location: string | null;
+  uptimePercent: number;
+  avgResponseTime: number;
+  consecutiveFailures: number;
+  lastCheck: string | null;
+  lastOnline: string | null;
+  lastOffline: string | null;
+  maintenanceReason: string | null;
+}
+
 export interface ReportOverview {
   generatedAt: string;
   period: { days: number; startDate: string; endDate: string };
@@ -42,24 +60,8 @@ export interface ReportOverview {
     avgResponseTime: number;
     clients: string[];
   }>;
-  ranking: Array<{
-    id: string;
-    internalId: string;
-    name: string;
-    host: string;
-    status: string;
-    contractNumber: string | null;
-    clientName: string | null;
-    location: string | null;
-    uptimePercent: number;
-    avgResponseTime: number;
-    consecutiveFailures: number;
-    lastCheck: string | null;
-    lastOnline: string | null;
-    lastOffline: string | null;
-    maintenanceReason: string | null;
-  }>;
-  criticalEquipments: ReportOverview['ranking'];
+  ranking: ReportEquipment[];
+  criticalEquipments: ReportEquipment[];
   recentAlerts: Array<{
     id: string;
     type: string;
