@@ -6,49 +6,13 @@ import prisma from '../config/database';
 import logger from '../config/logger';
 import { telegramContractService } from '../services/telegram-contract.service';
 import { telegramPanelService } from '../services/telegram-panel.service';
-import { TelegramInlineKeyboardMarkup, telegramService } from '../services/telegram.service';
+import { telegramService } from '../services/telegram.service';
+import { telegramVpnMenuService } from '../services/telegram-vpn-menu.service';
 
 class TelegramBotWorker {
   private isRunning = false;
   private offset = 0;
   private generation = 0;
-  private contractMenuButtonApplied = false;
-
-  private applyContractMenuButton(): void {
-    if (this.contractMenuButtonApplied) return;
-
-    const panel = telegramPanelService as unknown as {
-      menuKeyboard: () => TelegramInlineKeyboardMarkup;
-    };
-    const originalMenuKeyboard = panel.menuKeyboard.bind(panel);
-
-    panel.menuKeyboard = (): TelegramInlineKeyboardMarkup => {
-      const keyboard = originalMenuKeyboard();
-      const alreadyExists = keyboard.inline_keyboard.some(row =>
-        row.some(button => button.callback_data === 'contract-scan:list'),
-      );
-
-      if (!alreadyExists) {
-        const scanRow = [{
-          text: '📡 Varredura por contrato',
-          callback_data: 'contract-scan:list',
-        }];
-        const helpRowIndex = keyboard.inline_keyboard.findIndex(row =>
-          row.some(button => button.callback_data === 'help'),
-        );
-
-        if (helpRowIndex >= 0) {
-          keyboard.inline_keyboard.splice(helpRowIndex, 0, scanRow);
-        } else {
-          keyboard.inline_keyboard.push(scanRow);
-        }
-      }
-
-      return keyboard;
-    };
-
-    this.contractMenuButtonApplied = true;
-  }
 
   async start(): Promise<void> {
     if (this.isRunning) {
@@ -65,8 +29,6 @@ class TelegramBotWorker {
       logger.info('Telegram bot worker disabled by system setting');
       return;
     }
-
-    this.applyContractMenuButton();
 
     const savedOffset = await prisma.systemSetting.findUnique({
       where: { key: 'telegram_last_update_id' },
@@ -126,6 +88,9 @@ class TelegramBotWorker {
 
         for (const update of updates) {
           try {
+            const handledByVpnMenu = await telegramVpnMenuService.handleUpdate(update);
+            if (handledByVpnMenu) continue;
+
             const handledByContractScanner = await telegramContractService.handleUpdate(update);
             if (!handledByContractScanner) {
               await telegramPanelService.handleUpdate(update);
