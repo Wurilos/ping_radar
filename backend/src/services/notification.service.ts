@@ -6,6 +6,7 @@ import prisma from '../config/database';
 import logger from '../config/logger';
 import { config } from '../config';
 import { telegramService } from './telegram.service';
+import { telegramAlertService } from './telegram-alert.service';
 import { whatsappService } from './whatsapp.service';
 import { webhookService } from './webhook.service';
 
@@ -61,7 +62,7 @@ export class NotificationService {
 
     if (equipment.telegramAlertEnabled) {
       promises.push(
-        telegramService.sendOfflineAlert(equipment)
+        telegramAlertService.sendOfflineAlert(equipment)
           .then(() => undefined)
           .catch(err => {
             logger.error('Telegram offline alert failed', { error: err.message });
@@ -114,7 +115,7 @@ export class NotificationService {
 
     if (equipment.telegramAlertEnabled) {
       promises.push(
-        telegramService.sendOnlineAlert(equipment, offlineDuration)
+        telegramAlertService.sendOnlineAlert(equipment, offlineDuration)
           .then(() => undefined)
           .catch(err => {
             logger.error('Telegram online alert failed', { error: err.message });
