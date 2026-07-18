@@ -7,7 +7,6 @@ import logger from '../config/logger';
 import { AuthPayload } from '../middleware/auth.middleware';
 
 export class EquipmentService {
-  // Apply client scope filter
   private scopeFilter(user?: AuthPayload) {
     if (!user || user.role === 'ADMIN' || user.role === 'TECH') return {};
     return { clientId: user.clientId || 'none' };
@@ -22,8 +21,19 @@ export class EquipmentService {
     clientId?: string;
     group?: string;
     checkType?: string;
+    contractNumber?: string;
   }) {
-    const { user, page = 1, limit = 50, search, status, clientId, group, checkType } = params;
+    const {
+      user,
+      page = 1,
+      limit = 50,
+      search,
+      status,
+      clientId,
+      group,
+      checkType,
+      contractNumber,
+    } = params;
     const skip = (page - 1) * limit;
     const scope = this.scopeFilter(user);
 
@@ -32,12 +42,14 @@ export class EquipmentService {
     if (clientId) where.clientId = clientId;
     if (group) where.groupName = group;
     if (checkType) where.checkType = checkType;
+    if (contractNumber) where.contractNumber = contractNumber;
     if (search) {
       where.OR = [
         { name: { contains: search } },
         { internalId: { contains: search } },
         { host: { contains: search } },
         { location: { contains: search } },
+        { contractNumber: { contains: search } },
       ];
     }
 
@@ -46,6 +58,11 @@ export class EquipmentService {
         where,
         include: {
           client: { select: { id: true, name: true, company: true } },
+          maintenanceWindows: {
+            where: { endAt: null },
+            orderBy: { startAt: 'desc' },
+            take: 1,
+          },
           _count: { select: { checks: true, alerts: true } },
         },
         orderBy: [
@@ -94,6 +111,7 @@ export class EquipmentService {
     location?: string;
     clientId?: string;
     groupName?: string;
+    contractNumber?: string;
     checkInterval?: number;
     failThreshold?: number;
     alertCooldown?: number;
@@ -108,6 +126,7 @@ export class EquipmentService {
     const equipment = await prisma.equipment.create({
       data: {
         ...data,
+        contractNumber: data.contractNumber?.trim() || null,
         status: 'ONLINE',
         lastCheck: new Date(),
       },
@@ -119,10 +138,24 @@ export class EquipmentService {
   }
 
   async update(id: string, data: any) {
+    const normalized = {
+      ...data,
+      ...(Object.prototype.hasOwnProperty.call(data, 'contractNumber')
+        ? { contractNumber: String(data.contractNumber || '').trim() || null }
+        : {}),
+    };
+
     const equipment = await prisma.equipment.update({
       where: { id },
-      data,
-      include: { client: { select: { id: true, name: true } } },
+      data: normalized,
+      include: {
+        client: { select: { id: true, name: true } },
+        maintenanceWindows: {
+          where: { endAt: null },
+          orderBy: { startAt: 'desc' },
+          take: 1,
+        },
+      },
     });
 
     logger.info(`Equipment updated: ${equipment.name}`, { equipmentId: equipment.id });
@@ -137,43 +170,70 @@ export class EquipmentService {
 
   async deleteBulk(ids: string[]) {
     const result = await prisma.equipment.deleteMany({ where: { id: { in: ids } } });
-    logger.info(`Bulk equipment delete executed`, { count: result.count, ids });
+    logger.info('Bulk equipment delete executed', { count: result.count, ids });
     return { success: true, count: result.count };
   }
 
   async setMaintenance(id: string, enabled: boolean, userId: string, reason?: string) {
+    const current = await prisma.equipment.findUnique({
+      where: { id },
+      include: {
+        maintenanceWindows: {
+          where: { endAt: null },
+          orderBy: { startAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!current) throw new Error('Equipment not found');
+
+    const normalizedReason = String(reason || '').trim() || 'Manutenção informada pelo operador';
+    const openWindow = current.maintenanceWindows[0];
+
     const equipment = await prisma.equipment.update({
       where: { id },
       data: {
         status: enabled ? 'MAINTENANCE' : 'ONLINE',
         monitoringEnabled: !enabled,
+        consecutiveFailures: enabled ? current.consecutiveFailures : 0,
+        ...(enabled ? {} : { lastCheck: new Date() }),
       },
+      include: { client: { select: { id: true, name: true } } },
     });
 
     if (enabled) {
-      await prisma.maintenanceWindow.create({
-        data: {
-          equipmentId: id,
-          reason: reason || 'Manual maintenance',
-          startAt: new Date(),
-          createdById: userId,
-        },
-      });
-    } else {
-      // Close open maintenance windows
-      const openWindows = await prisma.maintenanceWindow.findMany({
-        where: { equipmentId: id, endAt: null },
-      });
-      for (const w of openWindows) {
+      if (openWindow) {
         await prisma.maintenanceWindow.update({
-          where: { id: w.id },
-          data: { endAt: new Date() },
+          where: { id: openWindow.id },
+          data: { reason: normalizedReason },
+        });
+      } else {
+        await prisma.maintenanceWindow.create({
+          data: {
+            equipmentId: id,
+            reason: normalizedReason,
+            startAt: new Date(),
+            createdById: userId,
+          },
         });
       }
+    } else {
+      await prisma.maintenanceWindow.updateMany({
+        where: { equipmentId: id, endAt: null },
+        data: { endAt: new Date() },
+      });
     }
 
-    logger.info(`Equipment ${enabled ? 'entered' : 'exited'} maintenance: ${equipment.name}`);
-    return equipment;
+    logger.info(`Equipment ${enabled ? 'entered' : 'exited'} maintenance: ${equipment.name}`, {
+      equipmentId: equipment.id,
+      reason: enabled ? normalizedReason : undefined,
+    });
+
+    return {
+      ...equipment,
+      maintenanceReason: enabled ? normalizedReason : null,
+    };
   }
 
   async getStats(user?: AuthPayload) {
@@ -187,7 +247,6 @@ export class EquipmentService {
       prisma.equipment.count({ where: { ...scope, status: 'MAINTENANCE' } }),
     ]);
 
-    // Recent alerts (last 24h)
     const oneDayAgo = new Date(Date.now() - 86400000);
     const recentAlerts = await prisma.alert.count({
       where: {
@@ -196,7 +255,6 @@ export class EquipmentService {
       },
     });
 
-    // Average uptime
     const equipments = await prisma.equipment.findMany({
       where: scope,
       select: { uptimePercent: true },
@@ -205,7 +263,6 @@ export class EquipmentService {
       ? equipments.reduce((sum, e) => sum + e.uptimePercent, 0) / equipments.length
       : 100;
 
-    // Average response time
     const avgResponse = await prisma.equipment.aggregate({
       where: { ...scope, status: 'ONLINE' },
       _avg: { avgResponseTime: true },
