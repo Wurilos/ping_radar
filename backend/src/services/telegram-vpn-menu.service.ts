@@ -4,7 +4,7 @@ import {
   TelegramUpdate,
   telegramService,
 } from './telegram.service';
-import { vpnWatchdogStatusService } from './vpn-watchdog-status.service';
+import { VpnPresentation, vpnWatchdogStatusService } from './vpn-watchdog-status.service';
 
 interface TelegramAccess {
   enabled: boolean;
@@ -75,6 +75,10 @@ class TelegramVpnMenuService {
     });
   }
 
+  private profileName(vpn: VpnPresentation, index: number): string {
+    return vpn.status?.profileName || vpn.status?.watchdogProfileName || `VPN ${index + 1}`;
+  }
+
   private keyboard(): TelegramInlineKeyboardMarkup {
     return {
       inline_keyboard: [
@@ -92,11 +96,27 @@ class TelegramVpnMenuService {
         ],
         [{ text: '📡 Varredura por contrato', callback_data: 'contract-scan:list' }],
         [
-          { text: '🔐 Detalhes da VPN', callback_data: 'vpn-status' },
+          { text: '🔐 Detalhes das VPNs', callback_data: 'vpn-status' },
           { text: '❓ Ajuda', callback_data: 'help' },
         ],
       ],
     };
+  }
+
+  private vpnKeyboard(vpns: VpnPresentation[]): TelegramInlineKeyboardMarkup {
+    const buttons = vpns.map((vpn, index) => ({
+      text: `${vpn.icon} ${this.profileName(vpn, index)}`.slice(0, 40),
+      callback_data: `vpn-status:${index}`,
+    }));
+    const rows: TelegramInlineKeyboardMarkup['inline_keyboard'] = [];
+    for (let index = 0; index < buttons.length; index += 2) {
+      rows.push(buttons.slice(index, index + 2));
+    }
+    rows.push([
+      { text: '🔄 Atualizar VPNs', callback_data: 'vpn-status' },
+      { text: '🏠 Menu', callback_data: 'menu' },
+    ]);
+    return { inline_keyboard: rows };
   }
 
   private async sendOrEdit(
@@ -113,16 +133,21 @@ class TelegramVpnMenuService {
   }
 
   private async showMenu(chatId: string, messageId?: number): Promise<void> {
-    const [online, offline, unstable, maintenance, total, vpn] = await Promise.all([
+    const [online, offline, unstable, maintenance, total, vpns] = await Promise.all([
       prisma.equipment.count({ where: { monitoringEnabled: true, status: 'ONLINE' } }),
       prisma.equipment.count({ where: { monitoringEnabled: true, status: 'OFFLINE' } }),
       prisma.equipment.count({ where: { monitoringEnabled: true, status: 'UNSTABLE' } }),
       prisma.equipment.count({ where: { status: 'MAINTENANCE' } }),
       prisma.equipment.count({ where: { monitoringEnabled: true } }),
-      vpnWatchdogStatusService.getPresentation(),
+      vpnWatchdogStatusService.getPresentations(),
     ]);
 
-    const profile = vpn.status?.profileName || 'USUARIOS-CR';
+    const vpnLines = vpns.length > 0
+      ? vpns.map((vpn, index) =>
+        `🔐 <b>${this.escapeHtml(this.profileName(vpn, index))}:</b> ${vpn.icon} ${this.escapeHtml(vpn.label)} (${this.escapeHtml(vpn.ageText)})`,
+      ).join('\n')
+      : '⚪ <b>VPNs:</b> nenhum status recebido';
+
     const text = `📡 <b>VigiaPing — Painel de Monitoramento</b>\n\n` +
       `🟢 <b>Online:</b> ${online}\n` +
       `🔴 <b>Offline:</b> ${offline}\n` +
@@ -130,19 +155,48 @@ class TelegramVpnMenuService {
       `🔧 <b>Manutenção:</b> ${maintenance}\n` +
       `📊 <b>Total monitorado:</b> ${total}\n\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `🔐 <b>VPN ${this.escapeHtml(profile)}:</b> ${vpn.icon} ${this.escapeHtml(vpn.label)}\n` +
-      `🕒 <b>VPN atualizada:</b> ${this.escapeHtml(vpn.ageText)}\n` +
+      `${vpnLines}\n` +
       `━━━━━━━━━━━━━━━━━━\n\n` +
       `Atualizado em ${this.formatDate(new Date())}`;
 
     await this.sendOrEdit(chatId, text, this.keyboard(), messageId);
   }
 
-  private async showVpnDetails(chatId: string, messageId?: number): Promise<void> {
-    const vpn = await vpnWatchdogStatusService.getPresentation();
+  private async showVpnDetails(chatId: string, messageId?: number, requestedIndex?: number): Promise<void> {
+    const vpns = await vpnWatchdogStatusService.getPresentations();
+
+    if (vpns.length === 0) {
+      await this.sendOrEdit(
+        chatId,
+        `⚪ <b>Status das VPNs indisponível</b>\n\nO painel ainda não recebeu arquivos de status dos watchdogs.`,
+        { inline_keyboard: [[{ text: '🔄 Atualizar', callback_data: 'vpn-status' }, { text: '🏠 Menu', callback_data: 'menu' }]] },
+        messageId,
+      );
+      return;
+    }
+
+    if (requestedIndex === undefined && vpns.length > 1) {
+      const lines = vpns.map((vpn, index) =>
+        `${vpn.icon} <b>${this.escapeHtml(this.profileName(vpn, index))}</b> — ${this.escapeHtml(vpn.label)}\n` +
+        `🕒 Atualizada ${this.escapeHtml(vpn.ageText)}`,
+      ).join('\n\n');
+      await this.sendOrEdit(
+        chatId,
+        `🔐 <b>VPNs monitoradas (${vpns.length})</b>\n\n${lines}\n\nSelecione uma VPN para ver os detalhes.`,
+        this.vpnKeyboard(vpns),
+        messageId,
+      );
+      return;
+    }
+
+    const index = Number.isInteger(requestedIndex) && requestedIndex! >= 0 && requestedIndex! < vpns.length
+      ? requestedIndex!
+      : 0;
+    const vpn = vpns[index];
     const status = vpn.status;
+    const profile = this.profileName(vpn, index);
     const text = status
-      ? `🔐 <b>Status da VPN ${this.escapeHtml(status.profileName || 'USUARIOS-CR')}</b>\n\n` +
+      ? `🔐 <b>Status da VPN ${this.escapeHtml(profile)}</b>\n\n` +
         `${vpn.icon} <b>Situação:</b> ${this.escapeHtml(vpn.label)}\n` +
         `📝 <b>Mensagem:</b> ${this.escapeHtml(status.message || 'Não informada')}\n` +
         `⚠️ <b>Falhas consecutivas:</b> ${Number(status.consecutiveFailures || 0)}\n` +
@@ -150,20 +204,9 @@ class TelegramVpnMenuService {
         `🔄 <b>Última reconexão:</b> ${this.formatDate(status.lastReconnect)}\n` +
         `🎯 <b>IPs de teste:</b> ${this.escapeHtml((status.targets || []).join(', ') || 'Não informados')}\n\n` +
         `<i>Informação enviada pelo watchdog que roda no Windows.</i>`
-      : `⚪ <b>Status da VPN indisponível</b>\n\n` +
-        `O painel ainda não recebeu o arquivo de status do watchdog.`;
+      : `⚪ <b>Status da VPN ${this.escapeHtml(profile)} indisponível</b>`;
 
-    await this.sendOrEdit(
-      chatId,
-      text,
-      {
-        inline_keyboard: [[
-          { text: '🔄 Atualizar VPN', callback_data: 'vpn-status' },
-          { text: '🏠 Menu', callback_data: 'menu' },
-        ]],
-      },
-      messageId,
-    );
+    await this.sendOrEdit(chatId, text, this.vpnKeyboard(vpns), messageId);
   }
 
   canHandle(update: TelegramUpdate): boolean {
@@ -172,7 +215,7 @@ class TelegramVpnMenuService {
       return command === '/start' || command === '/menu' || command === '/status';
     }
     const data = update.callback_query?.data || '';
-    return data === 'menu' || data === 'vpn-status';
+    return data === 'menu' || data.startsWith('vpn-status');
   }
 
   async handleUpdate(update: TelegramUpdate): Promise<boolean> {
@@ -193,8 +236,12 @@ class TelegramVpnMenuService {
     if (update.callback_query?.message) {
       await telegramService.answerCallbackQuery(update.callback_query.id);
       const messageId = update.callback_query.message.message_id;
-      if (update.callback_query.data === 'vpn-status') {
-        await this.showVpnDetails(chatId, messageId);
+      const callbackData = update.callback_query.data || '';
+      if (callbackData.startsWith('vpn-status')) {
+        const requestedIndex = callbackData.includes(':')
+          ? Number.parseInt(callbackData.split(':')[1], 10)
+          : undefined;
+        await this.showVpnDetails(chatId, messageId, Number.isNaN(requestedIndex) ? undefined : requestedIndex);
       } else {
         await this.showMenu(chatId, messageId);
       }

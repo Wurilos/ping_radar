@@ -16,6 +16,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_DEFAULT_CHAT_ID: ${TELEGRAM_DEFAULT_CHAT_ID:-}
       OPENVPN_LOG_PATH: ${OPENVPN_LOG_PATH:-/openvpn/openvpn-status.log}
+      VPN_WATCHDOG_STATUS_DIR: /vpn-watchdog/statuses
       VPN_WATCHDOG_STATUS_PATH: /vpn-watchdog/status.json
     ports:
       - "3001:3001"

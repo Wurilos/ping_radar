@@ -16,6 +16,16 @@ function Test-IsAdministrator {
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function ConvertTo-SafeProfileName {
+  param([string]$Name)
+
+  $safeName = [regex]::Replace($Name.Trim(), '[^A-Za-z0-9._-]', '_')
+  if ([string]::IsNullOrWhiteSpace($safeName)) {
+    throw 'O nome do perfil da VPN não pode ficar vazio.'
+  }
+  return $safeName
+}
+
 function Find-OpenVpnGui {
   $candidates = @(
     "$env:ProgramFiles\OpenVPN\bin\openvpn-gui.exe",
@@ -103,11 +113,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'vpn-watchdog.ps1'))) 
   throw 'O arquivo vpn-watchdog.ps1 precisa estar na mesma pasta deste instalador.'
 }
 
+if ($TestTargets.Count -eq 0) {
+  throw 'Informe pelo menos um IP interno em -TestTargets.'
+}
+
+$safeProfileName = ConvertTo-SafeProfileName -Name $ProfileName
 $openVpnGuiPath = Find-OpenVpnGui
 $sourceProfilePath = Find-OpenVpnProfile -Name $ProfileName
 $watchdogProfileName = "$ProfileName-WATCHDOG"
 
-$workDirectory = Join-Path $env:LOCALAPPDATA 'PingAlert\VpnWatchdog'
+$workRoot = Join-Path $env:LOCALAPPDATA 'PingAlert\VpnWatchdog'
+$workDirectory = Join-Path $workRoot $safeProfileName
 $configPath = Join-Path $workDirectory 'config.json'
 $installedScriptPath = Join-Path $workDirectory 'vpn-watchdog.ps1'
 $authFilePath = Join-Path $workDirectory 'openvpn-auth.tmp'
@@ -125,6 +141,7 @@ Protect-WorkDirectory -DirectoryPath $workDirectory
 Write-Host ''
 Write-Host "Perfil encontrado: $sourceProfilePath" -ForegroundColor Cyan
 Write-Host "OpenVPN GUI: $openVpnGuiPath" -ForegroundColor Cyan
+Write-Host "Pasta exclusiva: $workDirectory" -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'As credenciais serão solicitadas localmente e a senha será criptografada pelo Windows.' -ForegroundColor Yellow
 Write-Host 'Não feche esta janela até a instalação terminar.' -ForegroundColor Yellow
@@ -163,6 +180,7 @@ $profileContent = $profileContent.TrimEnd() + "`r`n`r`nauth-user-pass `"$authPat
 
 $config = [ordered]@{
   sourceProfileName = $ProfileName
+  safeProfileName = $safeProfileName
   watchdogProfileName = $watchdogProfileName
   sourceProfilePath = $sourceProfilePath
   watchdogProfilePath = $watchdogProfilePath
@@ -217,11 +235,12 @@ Start-ScheduledTask -TaskName $taskName
 
 Write-Host ''
 Write-Host 'Watchdog instalado com sucesso.' -ForegroundColor Green
+Write-Host "VPN: $ProfileName"
 Write-Host "Tarefa: $taskName"
 Write-Host "Perfil automático: $watchdogProfileName"
 Write-Host "Configuração: $configPath"
 Write-Host "Log: $logPath"
 Write-Host "Status: $statusPath"
 Write-Host ''
-Write-Host 'O watchdog testa três IPs internos. Após três falhas consecutivas, verifica a internet e tenta reconectar a VPN.' -ForegroundColor Cyan
-Write-Host 'A tarefa roda ao entrar no Windows, usando esta mesma conta de usuário.' -ForegroundColor Cyan
+Write-Host 'Cada VPN usa uma pasta, uma tarefa e credenciais próprias. Instalar outro perfil não substitui este.' -ForegroundColor Cyan
+Write-Host 'O watchdog tenta reconectar apenas o perfil correspondente a esta instalação.' -ForegroundColor Cyan

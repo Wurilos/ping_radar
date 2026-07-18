@@ -69,8 +69,9 @@ router.post('/contracts/:name/scan', authenticate, clientScope, async (req: Requ
 
 router.get('/vpn-status', authenticate, clientScope, async (_req: Request, res: Response) => {
   try {
-    const status = await vpnWatchdogStatusService.getPresentation();
-    res.json(status);
+    const data = await vpnWatchdogStatusService.getPresentations();
+    const first = data[0] || await vpnWatchdogStatusService.getPresentation();
+    res.json({ ...first, data });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

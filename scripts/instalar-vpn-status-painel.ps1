@@ -1,5 +1,5 @@
 param(
-  [string]$SourcePath = "$env:LOCALAPPDATA\PingAlert\VpnWatchdog\status.json",
+  [string]$SourceRoot = "$env:LOCALAPPDATA\PingAlert\VpnWatchdog",
   [int]$IntervalSeconds = 5
 )
 
@@ -22,17 +22,17 @@ if (-not (Test-Path -LiteralPath $sourceScript)) {
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $sharedDirectory = Join-Path $projectRoot '.vpn-watchdog'
-$destinationPath = Join-Path $sharedDirectory 'status.json'
-$workDirectory = Join-Path $env:LOCALAPPDATA 'PingAlert\VpnWatchdog'
-$installedScript = Join-Path $workDirectory 'vpn-status-exporter.ps1'
+$destinationDirectory = Join-Path $sharedDirectory 'statuses'
+$workRoot = Join-Path $env:LOCALAPPDATA 'PingAlert\VpnWatchdog'
+$installedScript = Join-Path $workRoot 'vpn-status-exporter.ps1'
 $taskName = 'PingAlert VPN Status Bridge'
 
-New-Item -ItemType Directory -Path $sharedDirectory -Force | Out-Null
-New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
 Copy-Item -LiteralPath $sourceScript -Destination $installedScript -Force
 
 $taskUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-$arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installedScript`" -SourcePath `"$SourcePath`" -DestinationPath `"$destinationPath`" -IntervalSeconds $IntervalSeconds"
+$arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installedScript`" -SourceRoot `"$SourceRoot`" -DestinationDirectory `"$destinationDirectory`" -IntervalSeconds $IntervalSeconds"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $taskUser
 $principal = New-ScheduledTaskPrincipal -UserId $taskUser -LogonType Interactive -RunLevel Highest
@@ -49,7 +49,7 @@ Register-ScheduledTask `
   -Trigger $trigger `
   -Principal $principal `
   -Settings $settings `
-  -Description 'Compartilha o status do watchdog da VPN com o painel PingAlert.' `
+  -Description 'Compartilha os status dos watchdogs das VPNs com o painel PingAlert.' `
   -Force | Out-Null
 
 Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
@@ -57,9 +57,10 @@ Start-ScheduledTask -TaskName $taskName
 Start-Sleep -Seconds 2
 
 Write-Host ''
-Write-Host 'Ponte de status da VPN instalada com sucesso.' -ForegroundColor Green
-Write-Host "Origem: $SourcePath"
-Write-Host "Destino: $destinationPath"
+Write-Host 'Ponte de status das VPNs instalada com sucesso.' -ForegroundColor Green
+Write-Host "Origem: $SourceRoot"
+Write-Host "Destino: $destinationDirectory"
 Write-Host "Tarefa: $taskName"
 Write-Host ''
-Write-Host 'Apenas o arquivo de status é compartilhado. Credenciais e perfil da VPN continuam protegidos.' -ForegroundColor Cyan
+Write-Host 'A ponte procura todas as VPNs instaladas, inclusive a instalação antiga da USUARIOS-CR.' -ForegroundColor Cyan
+Write-Host 'Apenas arquivos de status são compartilhados. Credenciais e perfis continuam protegidos.' -ForegroundColor Cyan
