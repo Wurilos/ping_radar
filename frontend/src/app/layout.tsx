@@ -1,13 +1,11 @@
-// ==============================================
-// PingAlert Pro — Root Layout
-// ==============================================
-
 import type { Metadata } from 'next';
 import { Space_Grotesk } from 'next/font/google';
 import './globals.css';
+import './themes.css';
 import { AuthProvider } from '@/lib/auth-context';
+import { ThemeProvider } from '@/lib/theme-context';
 
-const spaceGrotesk = Space_Grotesk({ 
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-space-grotesk',
   weight: ['300', '400', '500', '600', '700'],
@@ -19,15 +17,13 @@ export const metadata: Metadata = {
   keywords: 'network monitoring, ping, ICMP, equipment, alerts, telegram, whatsapp',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={spaceGrotesk.variable}>
+    <html lang="pt-BR" className={spaceGrotesk.variable} suppressHydrationWarning>
       <body className={spaceGrotesk.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

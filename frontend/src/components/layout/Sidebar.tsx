@@ -28,40 +28,30 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <>
-      {open && (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 49, display: 'none' }} className="mobile-overlay" />
-      )}
-
+      {open && <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 49, display: 'none' }} className="mobile-overlay" />}
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div style={{ padding: '24px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-alt))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: 'var(--shadow-neon-cyan)' }}>
             <Activity color="#000" size={24} strokeWidth={2.5} />
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, background: 'linear-gradient(135deg, #fff, var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.5px' }}>PING<span style={{ color: 'var(--color-accent)' }}>ALERT</span></div>
-            <div style={{ fontSize: 10, color: 'var(--color-accent-light)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Sys.Command</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)', letterSpacing: '0.5px' }}>PING<span style={{ color: 'var(--color-accent)' }}>ALERT</span></div>
+            <div style={{ fontSize: 10, color: 'var(--color-accent-light)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Central de Monitoramento</div>
           </div>
         </div>
 
         <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
           {filteredItems.map(item => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-            return (
-              <Link key={item.href} href={item.href} className={`sidebar-link ${isActive ? 'active' : ''}`} onClick={onClose}>
-                <item.icon size={20} />
-                {item.label}
-              </Link>
-            );
+            return <Link key={item.href} href={item.href} className={`sidebar-link ${isActive ? 'active' : ''}`} onClick={onClose}><item.icon size={20} />{item.label}</Link>;
           })}
         </nav>
 
         <div style={{ borderTop: '1px solid var(--color-border)', padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '8px 4px' }}>
-            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-alt))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#000', boxShadow: 'var(--shadow-neon-purple)' }}>
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-alt))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#000', boxShadow: 'var(--shadow-neon-purple)' }}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{user?.name}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--color-text-primary)' }}>{user?.name}</div>
               <div style={{ fontSize: 11, color: 'var(--color-accent)' }}>{user?.role}</div>
             </div>
           </div>
@@ -71,12 +61,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </div>
       </aside>
-
-      <style jsx global>{`
-        @media (max-width: 768px) {
-          .mobile-overlay { display: block !important; }
-        }
-      `}</style>
+      <style jsx global>{`@media (max-width:768px){.mobile-overlay{display:block!important}}`}</style>
     </>
   );
 }

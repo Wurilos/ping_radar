@@ -14,6 +14,7 @@ import prisma from './config/database';
 import authRoutes from './routes/auth.routes';
 import equipmentRoutes from './routes/equipment.routes';
 import clientRoutes from './routes/client.routes';
+import reportRoutes from './routes/report.routes';
 import {
   alertRoutes,
   userRoutes,
@@ -64,6 +65,7 @@ app.use((req, _res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/equipments', equipmentRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -87,18 +89,15 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // ---- Start Server ----
 async function start() {
   try {
-    // Test database connection
     await prisma.$connect();
     logger.info('✅ Database connected');
 
-    // Start Express server
     app.listen(config.port, () => {
       logger.info(`🚀 PingAlert Pro API running on port ${config.port}`);
       logger.info(`📊 Environment: ${config.nodeEnv}`);
       logger.info(`🔗 Frontend URL: ${config.frontendUrl}`);
     });
 
-    // Start monitoring and Telegram workers
     await monitoringWorker.start();
     logger.info('🔄 Monitoring worker started');
 
