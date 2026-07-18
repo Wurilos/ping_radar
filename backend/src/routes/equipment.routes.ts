@@ -5,13 +5,13 @@
 import { Router, Request, Response } from 'express';
 import { equipmentService } from '../services/equipment.service';
 import { contractScanService } from '../services/contract-scan.service';
+import { vpnWatchdogStatusService } from '../services/vpn-watchdog-status.service';
 import { authenticate, authorize, clientScope } from '../middleware/auth.middleware';
 import { monitoringWorker } from '../workers/monitoring.worker';
 import { getRouteParam } from '../utils/request';
 
 const router = Router();
 
-// GET /api/equipments - List all
 router.get('/', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const result = await equipmentService.findAll({
@@ -30,7 +30,6 @@ router.get('/', authenticate, clientScope, async (req: Request, res: Response) =
   }
 });
 
-// GET /api/equipments/stats - Dashboard stats
 router.get('/stats', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const stats = await equipmentService.getStats(req.user);
@@ -40,7 +39,6 @@ router.get('/stats', authenticate, clientScope, async (req: Request, res: Respon
   }
 });
 
-// GET /api/equipments/groups - Get unique groups
 router.get('/groups', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const groups = await equipmentService.getGroups(req.user);
@@ -50,7 +48,6 @@ router.get('/groups', authenticate, clientScope, async (req: Request, res: Respo
   }
 });
 
-// GET /api/equipments/contracts - List contracts available to the user
 router.get('/contracts', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const contracts = await contractScanService.listContracts(req.user);
@@ -60,7 +57,6 @@ router.get('/contracts', authenticate, clientScope, async (req: Request, res: Re
   }
 });
 
-// POST /api/equipments/contracts/:name/scan - Scan a contract in real time
 router.post('/contracts/:name/scan', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const name = getRouteParam(req.params.name, 'name');
@@ -71,7 +67,15 @@ router.post('/contracts/:name/scan', authenticate, clientScope, async (req: Requ
   }
 });
 
-// GET /api/equipments/:id - Get by ID
+router.get('/vpn-status', authenticate, clientScope, async (_req: Request, res: Response) => {
+  try {
+    const status = await vpnWatchdogStatusService.getPresentation();
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const equipment = await equipmentService.findById(getRouteParam(req.params.id, 'id'), req.user);
@@ -81,7 +85,6 @@ router.get('/:id', authenticate, clientScope, async (req: Request, res: Response
   }
 });
 
-// POST /api/equipments - Create
 router.post('/', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
     const equipment = await equipmentService.create(req.body);
@@ -91,7 +94,6 @@ router.post('/', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, 
   }
 });
 
-// PUT /api/equipments/:id - Update
 router.put('/:id', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
     const equipment = await equipmentService.update(getRouteParam(req.params.id, 'id'), req.body);
@@ -101,7 +103,6 @@ router.put('/:id', authenticate, authorize('ADMIN', 'TECH'), async (req: Request
   }
 });
 
-// DELETE /api/equipments/:id - Delete
 router.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
     await equipmentService.delete(getRouteParam(req.params.id, 'id'));
@@ -111,7 +112,6 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req: Request, res
   }
 });
 
-// POST /api/equipments/bulk-delete - Delete multiple
 router.post('/bulk-delete', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
@@ -125,7 +125,6 @@ router.post('/bulk-delete', authenticate, authorize('ADMIN'), async (req: Reques
   }
 });
 
-// POST /api/equipments/:id/test - Test equipment now
 router.post('/:id/test', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
     const result = await monitoringWorker.testEquipment(getRouteParam(req.params.id, 'id'));
@@ -135,7 +134,6 @@ router.post('/:id/test', authenticate, authorize('ADMIN', 'TECH'), async (req: R
   }
 });
 
-// POST /api/equipments/:id/maintenance - Toggle maintenance
 router.post('/:id/maintenance', authenticate, authorize('ADMIN', 'TECH'), async (req: Request, res: Response) => {
   try {
     const { enabled, reason } = req.body;
@@ -151,7 +149,6 @@ router.post('/:id/maintenance', authenticate, authorize('ADMIN', 'TECH'), async 
   }
 });
 
-// GET /api/equipments/:id/history - Get check history
 router.get('/:id/history', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const history = await equipmentService.getHistory(getRouteParam(req.params.id, 'id'), {
@@ -166,7 +163,6 @@ router.get('/:id/history', authenticate, clientScope, async (req: Request, res: 
   }
 });
 
-// GET /api/equipments/:id/response-time - Get response time chart data
 router.get('/:id/response-time', authenticate, clientScope, async (req: Request, res: Response) => {
   try {
     const hours = parseInt(req.query.hours as string) || 24;
