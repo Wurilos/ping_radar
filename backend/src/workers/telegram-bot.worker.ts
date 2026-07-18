@@ -7,6 +7,7 @@ import logger from '../config/logger';
 import { telegramContractService } from '../services/telegram-contract.service';
 import { telegramPanelService } from '../services/telegram-panel.service';
 import { telegramService } from '../services/telegram.service';
+import { telegramVpnMenuService } from '../services/telegram-vpn-menu.service';
 
 class TelegramBotWorker {
   private isRunning = false;
@@ -87,6 +88,9 @@ class TelegramBotWorker {
 
         for (const update of updates) {
           try {
+            const handledByVpnMenu = await telegramVpnMenuService.handleUpdate(update);
+            if (handledByVpnMenu) continue;
+
             const handledByContractScanner = await telegramContractService.handleUpdate(update);
             if (!handledByContractScanner) {
               await telegramPanelService.handleUpdate(update);
