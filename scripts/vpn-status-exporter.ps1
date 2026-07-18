@@ -67,7 +67,7 @@ function Export-VpnStatuses {
       $activeFiles += "$safeName.json"
     }
     catch {
-      Write-Warning "Falha ao exportar a VPN $profileName: $($_.Exception.Message)"
+      Write-Warning "Falha ao exportar a VPN ${profileName}: $($_.Exception.Message)"
     }
   }
 
