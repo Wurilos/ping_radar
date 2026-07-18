@@ -236,7 +236,7 @@ class TelegramVpnMenuService {
     if (update.callback_query?.message) {
       await telegramService.answerCallbackQuery(update.callback_query.id);
       const messageId = update.callback_query.message.message_id;
-      const callbackData = update.callback_query.data;
+      const callbackData = update.callback_query.data || '';
       if (callbackData.startsWith('vpn-status')) {
         const requestedIndex = callbackData.includes(':')
           ? Number.parseInt(callbackData.split(':')[1], 10)
