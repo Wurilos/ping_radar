@@ -50,11 +50,21 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString('pt-BR');
 }
 
+function getVpnColor(vpn: VpnPresentation): string {
+  if (vpn.stale) return 'var(--color-text-muted)';
+  const state = String(vpn.status?.state || '').toUpperCase();
+  if (state === 'ONLINE') return 'var(--color-success)';
+  if (['VPN_UNREACHABLE', 'RECONNECTING', 'COOLDOWN'].includes(state)) {
+    return 'var(--color-warning)';
+  }
+  return 'var(--color-danger)';
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [offlineEquipments, setOfflineEquipments] = useState<any[]>([]);
-  const [vpnStatus, setVpnStatus] = useState<VpnPresentation | null>(null);
+  const [vpnStatuses, setVpnStatuses] = useState<VpnPresentation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,17 +80,19 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  async function loadVpnStatus(): Promise<VpnPresentation | null> {
+  async function loadVpnStatuses(): Promise<VpnPresentation[]> {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('pingalert_token') : null;
       const response = await fetch(`${API_URL}/api/equipments/vpn-status`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         cache: 'no-store',
       });
-      if (!response.ok) return null;
-      return await response.json() as VpnPresentation;
+      if (!response.ok) return [];
+      const payload = await response.json() as VpnPresentation & { data?: VpnPresentation[] };
+      if (Array.isArray(payload.data)) return payload.data;
+      return payload.status ? [payload] : [];
     } catch {
-      return null;
+      return [];
     }
   }
 
@@ -91,12 +103,12 @@ export default function DashboardPage() {
         api.getEquipmentStats(),
         api.getAlerts({ limit: '5' }),
         api.getEquipments({ status: 'OFFLINE', limit: '10' }),
-        loadVpnStatus(),
+        loadVpnStatuses(),
       ]);
       setStats(statsData);
       setAlerts(alertsData.data || []);
       setOfflineEquipments(eqData.data || []);
-      setVpnStatus(vpnData);
+      setVpnStatuses(vpnData);
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
@@ -125,16 +137,6 @@ export default function DashboardPage() {
     { label: 'Resp. Média', value: `${stats?.avgResponseTime || 0}ms`, icon: <Zap size={24} />, color: 'var(--color-accent)', bg: 'rgba(0,240,255,0.15)' },
   ];
 
-  const vpnState = String(vpnStatus?.status?.state || '').toUpperCase();
-  const vpnColor = !vpnStatus || vpnStatus.stale
-    ? 'var(--color-text-muted)'
-    : vpnState === 'ONLINE'
-      ? 'var(--color-success)'
-      : ['VPN_UNREACHABLE', 'RECONNECTING', 'COOLDOWN'].includes(vpnState)
-        ? 'var(--color-warning)'
-        : 'var(--color-danger)';
-  const vpnProfile = vpnStatus?.status?.profileName || 'USUARIOS-CR';
-
   return (
     <div>
       <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -149,7 +151,7 @@ export default function DashboardPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 40 }}>
         {kpis.map((kpi, i) => (
-          <div key={i} className="kpi-card" style={{ animationDelay: `${i * 50}ms`, '--kpi-bg': kpi.bg, '--kpi-color': kpi.color } as React.CSSProperties}>
+          <div key={kpi.label} className="kpi-card" style={{ animationDelay: `${i * 50}ms`, '--kpi-bg': kpi.bg, '--kpi-color': kpi.color } as React.CSSProperties}>
             <div className="kpi-icon">{kpi.icon}</div>
             <div className="kpi-value">{kpi.value}</div>
             <div className="kpi-label">{kpi.label}</div>
@@ -226,49 +228,61 @@ export default function DashboardPage() {
         <div className="glass-card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, borderBottom: '1px solid var(--color-border)', paddingBottom: 16 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '1px', textTransform: 'uppercase' }}>
-              <div style={{ padding: 6, background: 'rgba(0, 240, 255, 0.15)', borderRadius: 8, color: 'var(--color-accent)' }}><Shield size={16} /></div>
-              Túneis VPN (Status)
+              <div style={{ padding: 6, background: 'rgba(0,240,255,0.15)', borderRadius: 8, color: 'var(--color-accent)' }}><Shield size={16} /></div>
+              Túneis VPN ({vpnStatuses.length})
             </h2>
             <button className="btn btn-ghost btn-sm" style={{ border: 'none' }} onClick={() => void loadData()} disabled={refreshing}>Atualizar</button>
           </div>
 
-          <div style={{ padding: 18, borderRadius: 'var(--radius-md)', border: `1px solid ${vpnColor}`, background: 'rgba(255,255,255,0.02)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', background: vpnColor, boxShadow: `0 0 12px ${vpnColor}`, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>VPN {vpnProfile}</div>
-                <div style={{ marginTop: 5, fontSize: 13, color: vpnColor, fontWeight: 700 }}>
-                  {vpnStatus ? `${vpnStatus.icon} ${vpnStatus.label}` : '⚪ Aguardando dados do watchdog'}
-                </div>
-              </div>
-              <Shield size={34} color={vpnColor} />
+          {vpnStatuses.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 38, color: 'var(--color-text-muted)' }}>
+              <Shield size={46} style={{ margin: '0 auto 14px', opacity: 0.5 }} />
+              <div style={{ fontWeight: 700 }}>AGUARDANDO DADOS DOS WATCHDOGS</div>
+              <div style={{ marginTop: 8, fontSize: 12 }}>Atualize a ponte de status após cadastrar a VPN.</div>
             </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {vpnStatuses.map((vpn, index) => {
+                const color = getVpnColor(vpn);
+                const profile = vpn.status?.profileName || vpn.status?.watchdogProfileName || `VPN ${index + 1}`;
+                return (
+                  <div key={`${profile}-${index}`} style={{ padding: 18, borderRadius: 'var(--radius-md)', border: `1px solid ${color}`, background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: color, boxShadow: `0 0 12px ${color}`, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>VPN {profile}</div>
+                        <div style={{ marginTop: 5, fontSize: 13, color, fontWeight: 700 }}>{vpn.icon} {vpn.label}</div>
+                      </div>
+                      <Shield size={34} color={color} />
+                    </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 18, fontSize: 12 }} className="vpn-details-grid">
-              <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                <div style={{ color: 'var(--color-text-muted)' }}>Último teste</div>
-                <div style={{ marginTop: 4, fontWeight: 700 }}>{vpnStatus?.ageText || 'Sem atualização'}</div>
-              </div>
-              <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                <div style={{ color: 'var(--color-text-muted)' }}>Falhas consecutivas</div>
-                <div style={{ marginTop: 4, fontWeight: 700 }}>{vpnStatus?.status?.consecutiveFailures ?? 0}</div>
-              </div>
-              <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                <div style={{ color: 'var(--color-text-muted)' }}>Mensagem</div>
-                <div style={{ marginTop: 4, fontWeight: 700 }}>{vpnStatus?.status?.message || 'Ponte de status ainda não detectada'}</div>
-              </div>
-              <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                <div style={{ color: 'var(--color-text-muted)' }}>Última reconexão</div>
-                <div style={{ marginTop: 4, fontWeight: 700 }}>{formatDate(vpnStatus?.status?.lastReconnect)}</div>
-              </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 18, fontSize: 12 }} className="vpn-details-grid">
+                      <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                        <div style={{ color: 'var(--color-text-muted)' }}>Último teste</div>
+                        <div style={{ marginTop: 4, fontWeight: 700 }}>{vpn.ageText}</div>
+                      </div>
+                      <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                        <div style={{ color: 'var(--color-text-muted)' }}>Falhas consecutivas</div>
+                        <div style={{ marginTop: 4, fontWeight: 700 }}>{vpn.status?.consecutiveFailures ?? 0}</div>
+                      </div>
+                      <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                        <div style={{ color: 'var(--color-text-muted)' }}>Mensagem</div>
+                        <div style={{ marginTop: 4, fontWeight: 700 }}>{vpn.status?.message || 'Não informada'}</div>
+                      </div>
+                      <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                        <div style={{ color: 'var(--color-text-muted)' }}>Última reconexão</div>
+                        <div style={{ marginTop: 4, fontWeight: 700 }}>{formatDate(vpn.status?.lastReconnect)}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      IPs de teste: {(vpn.status?.targets || []).join(', ') || 'Não informados'}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            {vpnStatus?.status?.targets?.length ? (
-              <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>IPs de teste: {vpnStatus.status.targets.join(', ')}</div>
-            ) : (
-              <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-warning)' }}>O painel ainda não recebeu o arquivo status.json do watchdog.</div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
