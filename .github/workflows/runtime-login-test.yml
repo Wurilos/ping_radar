@@ -1,0 +1,64 @@
+name: Runtime Login Test
+
+on:
+  push:
+    branches:
+      - fix/runtime-login
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and start containers
+        run: docker compose up -d --build
+
+      - name: Wait for backend
+        shell: bash
+        run: |
+          set -e
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3001/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Waiting for backend ($attempt/60)..."
+            docker compose ps
+            sleep 2
+          done
+          echo "Backend did not become healthy"
+          docker compose logs backend
+          exit 1
+
+      - name: Test initial login
+        shell: bash
+        run: |
+          set -e
+          HTTP_CODE=$(curl -sS -o /tmp/login.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:3001/api/auth/login \
+            -H "Content-Type: application/json" \
+            --data '{"email":"admin@pingalert.pro","password":"admin123"}')
+          echo "HTTP status: $HTTP_CODE"
+          cat /tmp/login.json
+          test "$HTTP_CODE" = "200"
+          node -e "const r=require('/tmp/login.json'); if(!r.token) process.exit(1)"
+
+      - name: Test frontend
+        run: curl -fsSI http://127.0.0.1:3000/login
+
+      - name: Show container state
+        if: always()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=300
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v

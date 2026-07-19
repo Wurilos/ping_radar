@@ -16,7 +16,9 @@ RUN npm run build
 
 EXPOSE 3001
 
-COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+# Checkouts no Windows podem converter o script para CRLF.
+# Normalizamos para LF dentro da imagem antes de executá-lo no Alpine Linux.
+RUN sed -i 's/\r$//' docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh
 
 CMD ["./docker-entrypoint.sh"]
