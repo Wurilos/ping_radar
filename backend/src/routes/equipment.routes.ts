@@ -23,6 +23,7 @@ router.get('/', authenticate, clientScope, async (req: Request, res: Response) =
       clientId: req.query.clientId as string,
       group: req.query.group as string,
       checkType: req.query.checkType as string,
+      contractNumber: req.query.contractNumber as string,
     });
     res.json(result);
   } catch (error: any) {
