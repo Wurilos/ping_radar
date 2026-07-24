@@ -25,6 +25,8 @@ export default function EquipmentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [contractFilter, setContractFilter] = useState('');
+  const [contracts, setContracts] = useState<Array<{ name: string; total: number }>>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<any>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
@@ -38,7 +40,21 @@ export default function EquipmentsPage() {
     maintenanceEnabled: false, maintenanceReason: '',
   });
 
-  useEffect(() => { loadEquipments(); }, [search, statusFilter]);
+  useEffect(() => { void loadContracts(); }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadEquipments(); }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search, statusFilter, contractFilter]);
+
+  async function loadContracts() {
+    try {
+      const result = await api.getContracts();
+      setContracts(result.data || []);
+    } catch (err) {
+      console.error('Não foi possível carregar os contratos', err);
+    }
+  }
 
   async function loadEquipments() {
     try {
@@ -46,6 +62,7 @@ export default function EquipmentsPage() {
       const params: Record<string, string> = {};
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (contractFilter) params.contractNumber = contractFilter;
       const result = await api.getEquipments(params);
       setEquipments(result.data || []);
       setPagination(result.pagination || { page: 1, total: 0, totalPages: 0 });
@@ -207,7 +224,7 @@ export default function EquipmentsPage() {
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)' }} />
           <input
             className="input"
-            placeholder="Buscar por nome, ID, IP ou contrato..."
+            placeholder="Filtrar equipamento por nome, ID, IP ou local..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ paddingLeft: 40, background: 'rgba(0,0,0,0.3)' }}
@@ -220,6 +237,33 @@ export default function EquipmentsPage() {
           <option value="UNSTABLE">INSTÁVEL</option>
           <option value="MAINTENANCE">MANUTENÇÃO</option>
         </select>
+        <select
+          className="input"
+          value={contractFilter}
+          onChange={(e) => setContractFilter(e.target.value)}
+          style={{ maxWidth: 240, background: 'rgba(0,0,0,0.3)' }}
+          aria-label="Filtrar por contrato"
+        >
+          <option value="">TODOS OS CONTRATOS</option>
+          {contracts.map((contract) => (
+            <option key={contract.name} value={contract.name}>
+              {contract.name} ({contract.total})
+            </option>
+          ))}
+        </select>
+        {(search || statusFilter || contractFilter) && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setSearch('');
+              setStatusFilter('');
+              setContractFilter('');
+            }}
+          >
+            LIMPAR FILTROS
+          </button>
+        )}
       </div>
 
       {selectedIds.length > 0 && (

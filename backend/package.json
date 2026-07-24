@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "worker": "tsx src/workers/monitoring.worker.ts",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "normalize:dr-names": "node dist/scripts/normalize-dr-equipment-names.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
