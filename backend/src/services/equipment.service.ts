@@ -6,6 +6,15 @@ import prisma from '../config/database';
 import logger from '../config/logger';
 import { AuthPayload } from '../middleware/auth.middleware';
 
+const NORMALIZED_DR_CONTRACTS = new Set(['DR-08', 'DR-14']);
+const NORMALIZED_DR_NAME_PATTERN = /^\s*RD(\d{4})(?!\d)(?:\s*-\s*.*)?\s*$/i;
+
+function normalizeEquipmentName(name: string, contractNumber?: string | null): string {
+  const contract = String(contractNumber || '').trim().toUpperCase();
+  if (!NORMALIZED_DR_CONTRACTS.has(contract)) return name;
+  return name.match(NORMALIZED_DR_NAME_PATTERN)?.[1] || name;
+}
+
 export class EquipmentService {
   private scopeFilter(user?: AuthPayload) {
     if (!user || user.role === 'ADMIN' || user.role === 'TECH') return {};
@@ -126,6 +135,7 @@ export class EquipmentService {
     const equipment = await prisma.equipment.create({
       data: {
         ...data,
+        name: normalizeEquipmentName(data.name, data.contractNumber),
         contractNumber: data.contractNumber?.trim() || null,
         status: 'ONLINE',
         lastCheck: new Date(),
@@ -138,10 +148,17 @@ export class EquipmentService {
   }
 
   async update(id: string, data: any) {
+    const hasContractNumber = Object.prototype.hasOwnProperty.call(data, 'contractNumber');
+    const hasName = Object.prototype.hasOwnProperty.call(data, 'name');
+    const normalizedContractNumber = hasContractNumber
+      ? String(data.contractNumber || '').trim() || null
+      : undefined;
+
     const normalized = {
       ...data,
-      ...(Object.prototype.hasOwnProperty.call(data, 'contractNumber')
-        ? { contractNumber: String(data.contractNumber || '').trim() || null }
+      ...(hasContractNumber ? { contractNumber: normalizedContractNumber } : {}),
+      ...(hasName && hasContractNumber
+        ? { name: normalizeEquipmentName(String(data.name), normalizedContractNumber) }
         : {}),
     };
 
